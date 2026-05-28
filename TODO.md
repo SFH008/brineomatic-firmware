@@ -1,5 +1,11 @@
 # v2.7
 
+* exit manual mode -> init hardware
+
+* user requested stop -> estop / rapid stop
+* non-successful finish -> estop / rapid stop
+* clean finish -> gradual release stop
+
 * move to config struct
     * public config and public defaults.
     * no more huge #define list
