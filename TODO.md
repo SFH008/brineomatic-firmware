@@ -1,10 +1,14 @@
 # v2.7
 
-* exit manual mode -> init hardware
+* exit manual mode -> init hardware (though STOPPING?)
 
 * user requested stop -> estop / rapid stop
 * non-successful finish -> estop / rapid stop
 * clean finish -> gradual release stop
+
+* hide flush valve status during running
+* hide diverter valve during flush / pickle / depickle
+* other hardware that doesnt make sense to show during various modes?
 
 * move to config struct
     * public config and public defaults.
