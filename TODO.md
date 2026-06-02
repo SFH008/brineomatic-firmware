@@ -1,7 +1,5 @@
 # v2.7
 
-* exit manual mode -> init hardware (though STOPPING?)
-
 * user requested stop -> estop / rapid stop
 * non-successful finish -> estop / rapid stop
 * clean finish -> gradual release stop

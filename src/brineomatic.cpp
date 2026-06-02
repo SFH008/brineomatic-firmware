@@ -474,13 +474,15 @@ void Brineomatic::setMembranePressureTarget(float pressure)
 void Brineomatic::idle()
 {
   if (currentStatus == Status::MANUAL)
-    currentStatus = Status::IDLE;
+    stopFlag = true;
 }
 
 void Brineomatic::manual()
 {
-  if (currentStatus == Status::IDLE)
+  if (currentStatus == Status::IDLE) {
+    stopFlag = false;
     currentStatus = Status::MANUAL;
+  }
 }
 
 void Brineomatic::start()
@@ -1259,6 +1261,11 @@ void Brineomatic::runStateMachine()
     // MANUAL
     //
     case Status::MANUAL:
+      if (stopFlag) {
+        initializeHardware();
+        currentStatus = Status::IDLE;
+      }
+
       break;
 
     //
