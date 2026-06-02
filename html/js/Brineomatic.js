@@ -969,6 +969,7 @@
 
     }
 
+    //only show flush valve during flushing
     if (YB.config.brineomatic.has_flush_valve) {
       $('#bomFlushValveStatus span').removeClass();
       $('#bomFlushValveStatus span').addClass("badge");
@@ -1517,24 +1518,24 @@
                       class="col-12 bomRUNNING bomFLUSHING bomPICKLING bomDEPICKLING bomSTOPPING" style="display:none">
                       <table id="bomStatusTable" class="table table-hover">
                           <tbody id="bomStatusTableBody">
-                              <tr id="bomBoostPumpStatus">
+                              <tr id="bomBoostPumpStatus" class="bomRUNNING bomPICKLING bomDEPICKLING bomSTOPPING">
                                   <th>Boost Pump:</th>
                                   <td><span></span></td>
                               </tr>
-                              <tr id="bomHighPressurePumpStatus">
+                              <tr id="bomHighPressurePumpStatus" class="bomRUNNING bomPICKLING bomDEPICKLING bomSTOPPING">
                                   <th>High Pressure Pump:</th>
                                   <td><span></span></td>
                               </tr>
-                              <tr id="bomDiverterValveStatus">
+                              <tr id="bomDiverterValveStatus" class="bomRUNNING bomSTOPPING">
                                   <th>Diverter Valve:</th>
+                                  <td><span></span></td>
+                              </tr>
+                              <tr id="bomFlushValveStatus" class="bomFLUSHING bomSTOPPING">
+                                  <th>Flush Valve:</th>
                                   <td><span></span></td>
                               </tr>
                               <tr id="bomFanStatus">
                                   <th>Cooling Fan:</th>
-                                  <td><span></span></td>
-                              </tr>
-                              <tr id="bomFlushValveStatus">
-                                  <th>Flush Valve:</th>
                                   <td><span></span></td>
                               </tr>
                           </tbody>
