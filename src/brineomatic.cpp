@@ -562,14 +562,19 @@ void Brineomatic::stop()
   }
 }
 
-bool Brineomatic::initializeHardware()
+bool Brineomatic::initializeHardware(bool emergencyStop)
 {
   bool isFailure = false;
 
   YBP.println("Hardware Init Start");
 
-  disableHighPressurePump();
-  disableBoostPump();
+  // immediate turn off here
+  if (emergencyStop) {
+    disableHighPressurePump();
+    disableBoostPump();
+  }
+
+  // these arent so important.
   openDiverterValve();
   closeFlushValve();
   disableCoolingFan();
@@ -597,6 +602,12 @@ bool Brineomatic::initializeHardware()
 
     // turns our high pressure valve controller off
     setMembranePressureTarget(-1);
+  }
+
+  // turn off after for a gradual release of pressure
+  if (!emergencyStop) {
+    disableHighPressurePump();
+    disableBoostPump();
   }
 
   if (highPressureValveControl.equals("STEPPER")) {
@@ -1243,7 +1254,7 @@ void Brineomatic::runStateMachine()
     //
     case Status::STARTUP:
       YBP.println("STARTUP");
-      initializeHardware();
+      initializeHardware(false);
 
       if (isPickled)
         currentStatus = Status::PICKLED;
@@ -1262,7 +1273,7 @@ void Brineomatic::runStateMachine()
     //
     case Status::MANUAL:
       if (stopFlag) {
-        initializeHardware();
+        initializeHardware(false);
         currentStatus = Status::IDLE;
       }
 
@@ -1310,7 +1321,7 @@ void Brineomatic::runStateMachine()
       if (checkBatteryLevel(runResult))
         return logResult(Status::RUNNING, runResult);
 
-      if (initializeHardware()) {
+      if (initializeHardware(false)) {
         currentStatus = Status::IDLE;
         return logResult(Status::RUNNING, runResult);
       }
@@ -1459,11 +1470,17 @@ void Brineomatic::runStateMachine()
 
       resetErrorTimers();
 
-      if (initializeHardware()) {
+      // treat anything other than success as a hard stop
+      bool success = false;
+      if (runResult == Result::SUCCESS_TIME || runResult == Result::SUCCESS_VOLUME || runResult == Result::SUCCESS_TANK_LEVEL)
+        success = true;
+
+      // init hardware will handle the stopping.
+      if (initializeHardware(!success)) {
         currentStatus = Status::IDLE;
         return;
       } else {
-        if (runResult == Result::SUCCESS_TIME || runResult == Result::SUCCESS_VOLUME || runResult == Result::SUCCESS_VOLUME)
+        if (success)
           _app.playMelody(successMelody.c_str());
         else
           _app.playMelody(errorMelody.c_str());
@@ -1502,7 +1519,7 @@ void Brineomatic::runStateMachine()
       flushStart = millis();
       currentFlushVolume = 0;
 
-      if (initializeHardware()) {
+      if (initializeHardware(false)) {
         currentStatus = Status::IDLE;
         return logResult(Status::FLUSHING, flushResult);
       }
@@ -1580,7 +1597,9 @@ void Brineomatic::runStateMachine()
       // save to our log.
       logResult(Status::FLUSHING, flushResult);
 
-      initializeHardware();
+      // normal stop on success, otherwise fast/estop
+      bool success = (flushResult == Result::SUCCESS_TIME || flushResult == Result::SUCCESS_VOLUME || flushResult == Result::SUCCESS_SALINITY);
+      initializeHardware(!success);
       waitForFlushValveOff();
 
       currentStatus = Status::IDLE;
@@ -1600,7 +1619,7 @@ void Brineomatic::runStateMachine()
       if (checkBatteryLevel(pickleResult))
         return logResult(Status::PICKLING, pickleResult);
 
-      if (initializeHardware()) {
+      if (initializeHardware(false)) {
         currentStatus = Status::IDLE;
         return logResult(Status::PICKLING, pickleResult);
       }
@@ -1614,14 +1633,14 @@ void Brineomatic::runStateMachine()
 
         if (checkPickleTotalFlowrateLow(pickleResult)) {
           currentStatus = Status::IDLE;
-          initializeHardware();
+          initializeHardware(true);
           return logResult(Status::PICKLING, pickleResult);
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
       }
 
-      if (initializeHardware()) {
+      if (initializeHardware(stopFlag)) {
         currentStatus = Status::IDLE;
         return logResult(Status::PICKLING, pickleResult);
       }
@@ -1657,7 +1676,7 @@ void Brineomatic::runStateMachine()
       if (checkBatteryLevel(depickleResult))
         return logResult(Status::DEPICKLING, depickleResult);
 
-      if (initializeHardware()) {
+      if (initializeHardware(false)) {
         currentStatus = Status::IDLE;
         return logResult(Status::DEPICKLING, depickleResult);
       }
@@ -1671,14 +1690,14 @@ void Brineomatic::runStateMachine()
 
         if (checkPickleTotalFlowrateLow(depickleResult)) {
           currentStatus = Status::IDLE;
-          initializeHardware();
+          initializeHardware(true);
           return logResult(Status::DEPICKLING, depickleResult);
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
       }
 
-      if (initializeHardware()) {
+      if (initializeHardware(stopFlag)) {
         currentStatus = Status::IDLE;
         return logResult(Status::DEPICKLING, depickleResult);
       }

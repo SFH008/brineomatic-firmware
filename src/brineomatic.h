@@ -187,7 +187,7 @@ class Brineomatic
     void depickle(uint32_t duration);
     void stop();
 
-    bool initializeHardware();
+    bool initializeHardware(bool emergencyStop = false);
 
     bool autoflushEnabled();
 
