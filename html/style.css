@@ -213,3 +213,9 @@ html[data-bs-theme="dark"] .c3 .c3-axis text {
 .yarrboardLog .gridjs-pagination .gridjs-pages button.gridjs-currentPage {
     background-color: var(--bs-secondary-bg);
 }
+
+tbody#bomTableBody tr td,
+tbody#bomStatusTableBody tr td {
+    height: 41px;
+    vertical-align: middle;
+}
