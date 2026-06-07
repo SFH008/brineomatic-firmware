@@ -107,6 +107,30 @@ class BrineomaticController : public BaseController
   private:
     Brineomatic wm;
 
+    RelayController& _relays;
+    ServoController& _servos;
+    StepperController& _steppers;
+
+    // Factory-default settings (single source of truth lives in brineomatic_config.h).
+    // Used as the fallback when loading config JSON into the watermaker's live config.
+    BrineomaticConfig defaults;
+
+    // Validation, loading, and saving of the configuration JSON.  These operate
+    // on wm.getConfig() so the controller and Brineomatic share the same data.
+    void generateConfigJSON(JsonVariant output, UserRole role, ConfigPurpose purpose);
+
+    bool validateConfigJSON(JsonVariant config, char* error, size_t err_size);
+    bool validateUIConfigJSON(JsonVariant config, char* error, size_t err_size);
+    bool validateGeneralConfigJSON(JsonVariant config, char* error, size_t err_size);
+    bool validateHardwareConfigJSON(JsonVariant config, char* error, size_t err_size);
+    bool validateSafeguardsConfigJSON(JsonVariant config, char* error, size_t err_size);
+
+    void loadConfigJSON(JsonVariantConst config);
+    void loadUIConfigJSON(JsonVariantConst config);
+    void loadGeneralConfigJSON(JsonVariantConst config);
+    void loadHardwareConfigJSON(JsonVariantConst config);
+    void loadSafeguardsConfigJSON(JsonVariantConst config);
+
     uint32_t lastOutput;
 
     char ha_key[YB_HOSTNAME_LENGTH];

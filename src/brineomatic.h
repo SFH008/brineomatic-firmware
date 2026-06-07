@@ -105,9 +105,6 @@ class Brineomatic
     static constexpr const char* TANK_LEVEL_SENSOR_TYPES[] = {"NONE", "EXTERNAL", "MQTT"};
     static constexpr const char* BATTERY_LEVEL_SENSOR_TYPES[] = {"NONE", "EXTERNAL", "MQTT"};
 
-    // Factory-default settings (single source of truth lives in brineomatic_config.h).
-    BrineomaticConfig defaults;
-
     bool isPickled;
     int64_t pickledOnTimestamp = 0;
 
@@ -284,19 +281,11 @@ class Brineomatic
     void runStateMachine();
 
     void generateUpdateJSON(JsonVariant output);
-    void generateConfigJSON(JsonVariant output, UserRole role, ConfigPurpose purpose);
 
-    bool validateConfigJSON(JsonVariant config, char* error, size_t err_size);
-    bool validateUIConfigJSON(JsonVariant config, char* error, size_t err_size);
-    bool validateGeneralConfigJSON(JsonVariant config, char* error, size_t err_size);
-    bool validateHardwareConfigJSON(JsonVariant config, char* error, size_t err_size);
-    bool validateSafeguardsConfigJSON(JsonVariant config, char* error, size_t err_size);
-
-    void loadConfigJSON(JsonVariantConst config);
-    void loadUIConfigJSON(JsonVariantConst config);
-    void loadGeneralConfigJSON(JsonVariantConst config);
-    void loadHardwareConfigJSON(JsonVariantConst config);
-    void loadSafeguardsConfigJSON(JsonVariantConst config);
+    // Live configuration.  Validation, loading, and saving of the config JSON
+    // lives in BrineomaticController; it operates directly on this struct so
+    // both classes reference the same data.
+    BrineomaticConfig& getConfig() { return _config; }
 
     void updateMQTT();
 
