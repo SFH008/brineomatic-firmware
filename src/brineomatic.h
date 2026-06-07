@@ -13,6 +13,7 @@
 
 #include "Flowmeter.h"
 #include "GD20Modbus.h"
+#include "SensorStatistics.h"
 #include "adchelper.h"
 #include "brineomatic_config.h"
 #include "etl/deque.h"
@@ -172,6 +173,12 @@ class Brineomatic
     void setMembranePressureTarget(float pressure);
     void setMotorTemperature(float temp);
     void setWaterTemperature(float temp);
+    void setProductFlowrate(float flowrate);
+    void setBrineFlowrate(float flowrate);
+    void setProductSalinity(float salinity);
+    void setBrineSalinity(float salinity);
+    void setFilterPressure(float pressure);
+    void setMembranePressure(float pressure);
     void setTankLevel(float level);
     void setBatteryLevel(float level);
 
@@ -334,6 +341,18 @@ class Brineomatic
     float currentFilterPressure;
     float currentMembranePressure;
     float currentMembranePressureTarget;
+
+    // per-run statistics (min / max / average / start / end) for each sensor.
+    // Sampling is gated by start()/stop() on the state machine; add() is a
+    // no-op while inactive.
+    SensorStatistics waterTemperatureStats;
+    SensorStatistics motorTemperatureStats;
+    SensorStatistics productFlowrateStats;
+    SensorStatistics brineFlowrateStats;
+    SensorStatistics productSalinityStats;
+    SensorStatistics brineSalinityStats;
+    SensorStatistics filterPressureStats;
+    SensorStatistics membranePressureStats;
 
     // tracking when we first saw the error condition
     uint32_t membranePressureHighStart = 0;

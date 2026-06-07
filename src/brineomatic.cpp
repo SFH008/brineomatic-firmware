@@ -228,7 +228,7 @@ void Brineomatic::measureProductFlowmeter()
       totalVolume += volume;
     }
 
-    currentProductFlowrate = flowrate;
+    setProductFlowrate(flowrate);
   }
 #endif
 }
@@ -247,7 +247,7 @@ void Brineomatic::measureBrineFlowmeter()
     if (isFlushValveOpen())
       currentFlushVolume += volume;
 
-    currentBrineFlowrate = flowrate;
+    setBrineFlowrate(flowrate);
   }
 #endif
 }
@@ -259,7 +259,7 @@ void Brineomatic::measureMotorTemperature()
     return;
 
   if (motorTemperatureSensor.isConversionComplete()) {
-    currentMotorTemperature = motorTemperatureSensor.getTempC(motorTemperatureAddress);
+    setMotorTemperature(motorTemperatureSensor.getTempC(motorTemperatureAddress));
     motorTemperatureSensor.requestTemperatures();
   }
 #endif
@@ -272,7 +272,7 @@ void Brineomatic::measureWaterTemperature()
     return;
 
   if (waterTemperatureSensor.isConversionComplete()) {
-    currentWaterTemperature = waterTemperatureSensor.getTempC(waterTemperatureAddress);
+    setWaterTemperature(waterTemperatureSensor.getTempC(waterTemperatureAddress));
     waterTemperatureSensor.requestTemperatures();
   }
 #endif
@@ -283,7 +283,7 @@ void Brineomatic::measureProductSalinity()
   int16_t reading = adcHelper->getAverageReading(YB_PRODUCT_TDS_CHANNEL);
   gravityTds.setTemperature(getWaterTemperature());
   gravityTds.update(reading);
-  currentProductSalinity = gravityTds.getTdsValue() + _config.productTDSSensorOffset;
+  setProductSalinity(gravityTds.getTdsValue() + _config.productTDSSensorOffset);
 }
 
 void Brineomatic::measureBrineSalinity()
@@ -291,7 +291,7 @@ void Brineomatic::measureBrineSalinity()
   int16_t reading = adcHelper->getAverageReading(YB_BRINE_TDS_CHANNEL);
   gravityTds.setTemperature(getWaterTemperature());
   gravityTds.update(reading);
-  currentBrineSalinity = gravityTds.getTdsValue() + _config.brineTDSSensorOffset;
+  setBrineSalinity(gravityTds.getTdsValue() + _config.brineTDSSensorOffset);
 }
 
 void Brineomatic::measureFilterPressure()
@@ -307,7 +307,7 @@ void Brineomatic::measureFilterPressure()
   if (amperage < 4.0)
     amperage = 4.0;
 
-  currentFilterPressure = map_generic(amperage, 4.0, 20.0, _config.filterPressureSensorMin, _config.filterPressureSensorMax);
+  setFilterPressure(map_generic(amperage, 4.0, 20.0, _config.filterPressureSensorMin, _config.filterPressureSensorMax));
 }
 
 void Brineomatic::measureMembranePressure()
@@ -323,7 +323,7 @@ void Brineomatic::measureMembranePressure()
   if (amperage < 4.0)
     amperage = 4.0;
 
-  currentMembranePressure = map_generic(amperage, 4.0, 20.0, _config.membranePressureSensorMin, _config.membranePressureSensorMax);
+  setMembranePressure(map_generic(amperage, 4.0, 20.0, _config.membranePressureSensorMin, _config.membranePressureSensorMax));
 }
 
 void Brineomatic::initChannels()
@@ -846,6 +846,12 @@ float Brineomatic::getFilterPressure()
   return currentFilterPressure;
 }
 
+void Brineomatic::setFilterPressure(float pressure)
+{
+  currentFilterPressure = pressure;
+  filterPressureStats.add(pressure);
+}
+
 float Brineomatic::getFilterPressureMinimum()
 {
   return _config.filterPressureLowThreshold;
@@ -854,6 +860,12 @@ float Brineomatic::getFilterPressureMinimum()
 float Brineomatic::getMembranePressure()
 {
   return currentMembranePressure;
+}
+
+void Brineomatic::setMembranePressure(float pressure)
+{
+  currentMembranePressure = pressure;
+  membranePressureStats.add(pressure);
 }
 
 float Brineomatic::getMembranePressureMinimum()
@@ -866,9 +878,21 @@ float Brineomatic::getProductFlowrate()
   return currentProductFlowrate;
 }
 
+void Brineomatic::setProductFlowrate(float flowrate)
+{
+  currentProductFlowrate = flowrate;
+  productFlowrateStats.add(flowrate);
+}
+
 float Brineomatic::getBrineFlowrate()
 {
   return currentBrineFlowrate;
+}
+
+void Brineomatic::setBrineFlowrate(float flowrate)
+{
+  currentBrineFlowrate = flowrate;
+  brineFlowrateStats.add(flowrate);
 }
 
 float Brineomatic::getProductFlowrateMinimum()
@@ -917,6 +941,7 @@ float Brineomatic::getWaterTemperature()
 void Brineomatic::setWaterTemperature(float temp)
 {
   currentWaterTemperature = temp;
+  waterTemperatureStats.add(temp);
 }
 
 void Brineomatic::setTankLevel(float level)
@@ -932,6 +957,7 @@ void Brineomatic::setBatteryLevel(float level)
 void Brineomatic::setMotorTemperature(float temp)
 {
   currentMotorTemperature = temp;
+  motorTemperatureStats.add(temp);
 }
 
 float Brineomatic::getMotorTemperature()
@@ -949,9 +975,21 @@ float Brineomatic::getProductSalinity()
   return currentProductSalinity;
 }
 
+void Brineomatic::setProductSalinity(float salinity)
+{
+  currentProductSalinity = salinity;
+  productSalinityStats.add(salinity);
+}
+
 float Brineomatic::getBrineSalinity()
 {
   return currentBrineSalinity;
+}
+
+void Brineomatic::setBrineSalinity(float salinity)
+{
+  currentBrineSalinity = salinity;
+  brineSalinityStats.add(salinity);
 }
 
 float Brineomatic::getProductSalinityMaximum()
