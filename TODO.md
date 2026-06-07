@@ -1,19 +1,6 @@
 # v2.7
 
 * statistics
-    * add SensorStatistics tracker for each of these variables:
-        float currentWaterTemperature -> waterTemperatureStats;
-        float currentMotorTemperature;
-        float currentProductFlowrate;
-        float currentBrineFlowrate;
-        float currentProductSalinity;
-        float currentBrineSalinity;
-        float currentFilterPressure;
-        float currentMembranePressure;
-    * call {variable}Stats->add() in the set{Variable}() function
-        * if the set{Variable}() function does not exist, add it.
-
-    * add start() / end() calls to state machine
     * add generateRunStatsJSON(output)
     * logging
         * add stats member to the logging call via generateRunStatsJSON()

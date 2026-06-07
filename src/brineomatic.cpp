@@ -1410,6 +1410,8 @@ void Brineomatic::runStateMachine()
 
       closeDiverterValve();
 
+      startSensorStatistics();
+
       uint32_t productionStart = millis();
       while (true) {
         if (checkBatteryLevel(runResult))
@@ -1507,6 +1509,7 @@ void Brineomatic::runStateMachine()
       YBP.println("STOPPING");
       YBP.printf("Run Status: %s\n", resultToString(runResult));
 
+      stopSensorStatistics();
       resetErrorTimers();
 
       // treat anything other than success as a hard stop
@@ -1776,6 +1779,30 @@ void Brineomatic::resetErrorTimers()
   diverterValveOpenStart = 0;
   productSalinityHighStart = 0;
   motorTemperatureStart = 0;
+}
+
+void Brineomatic::startSensorStatistics()
+{
+  waterTemperatureStats.start();
+  motorTemperatureStats.start();
+  productFlowrateStats.start();
+  brineFlowrateStats.start();
+  productSalinityStats.start();
+  brineSalinityStats.start();
+  filterPressureStats.start();
+  membranePressureStats.start();
+}
+
+void Brineomatic::stopSensorStatistics()
+{
+  waterTemperatureStats.stop();
+  motorTemperatureStats.stop();
+  productFlowrateStats.stop();
+  brineFlowrateStats.stop();
+  productSalinityStats.stop();
+  brineSalinityStats.stop();
+  filterPressureStats.stop();
+  membranePressureStats.stop();
 }
 
 bool Brineomatic::checkStopFlag(Result& result)

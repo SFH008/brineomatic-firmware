@@ -381,6 +381,8 @@ class Brineomatic
     float tankLevelFull = 0.99; // 0 = empty, 1 = full (runtime, not persisted)
 
     void resetErrorTimers();
+    void startSensorStatistics();
+    void stopSensorStatistics();
 
     bool checkStopFlag(Result& result);
     bool checkTankLevel();
