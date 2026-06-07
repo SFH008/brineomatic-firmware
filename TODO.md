@@ -1,6 +1,5 @@
 # v2.7
 
-* move config handling to controller
 * configurable thresholds for gauges - issue #3
 * threshold indication on gauges - issue #9
 * add graphs (stored in psram)

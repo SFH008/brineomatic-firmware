@@ -177,13 +177,69 @@ void BrineomaticController::generateCapabilitiesHook(JsonVariant config)
 
 void BrineomaticController::generateUpdateHook(JsonVariant output)
 {
-  wm.generateUpdateJSON(output);
+  output["brineomatic"] = true;
+  output["status"] = wm.getStatus();
+  output["run_result"] = wm.resultToString(wm.getRunResult());
+  output["flush_result"] = wm.resultToString(wm.getFlushResult());
+  output["pickle_result"] = wm.resultToString(wm.getPickleResult());
+  output["depickle_result"] = wm.resultToString(wm.getDepickleResult());
+  output["motor_temperature"] = wm.getMotorTemperature();
+  output["water_temperature"] = wm.getWaterTemperature();
+  output["product_flowrate"] = wm.getProductFlowrate();
+  output["brine_flowrate"] = wm.getBrineFlowrate();
+  output["total_flowrate"] = wm.getTotalFlowrate();
+  output["volume"] = wm.getVolume();
+  output["flush_volume"] = wm.getFlushVolume();
+  output["product_salinity"] = wm.getProductSalinity();
+  output["brine_salinity"] = wm.getBrineSalinity();
+  output["filter_pressure"] = wm.getFilterPressure();
+  output["membrane_pressure"] = wm.getMembranePressure();
+  output["tank_level"] = wm.getTankLevel();
+  output["battery_level"] = wm.getBatteryLevel();
+
+  if (wm.hasBoostPump())
+    output["boost_pump_on"] = wm.isBoostPumpOn();
+  if (wm.hasHighPressurePump())
+    output["high_pressure_pump_on"] = wm.isHighPressurePumpOn();
+  if (wm.hasDiverterValve())
+    output["diverter_valve_open"] = wm.isDiverterValveOpen();
+  if (wm.hasFlushValve())
+    output["flush_valve_open"] = wm.isFlushValveOpen();
+  if (wm.hasCoolingFan())
+    output["cooling_fan_on"] = wm.isCoolingFanOn();
+
+  output["next_flush_countdown"] = wm.getNextFlushCountdown();
+
+  if (!strcmp(wm.getStatus(), "RUNNING")) {
+    output["runtime_elapsed"] = wm.getRuntimeElapsed();
+    output["finish_countdown"] = wm.getFinishCountdown();
+  }
+
+  if (!strcmp(wm.getStatus(), "FLUSHING")) {
+    output["flush_elapsed"] = wm.getFlushElapsed();
+    output["flush_countdown"] = wm.getFlushCountdown();
+  }
+
+  if (!strcmp(wm.getStatus(), "PICKLING")) {
+    output["pickle_elapsed"] = wm.getPickleElapsed();
+    output["pickle_countdown"] = wm.getPickleCountdown();
+  }
+
+  if (!strcmp(wm.getStatus(), "DEPICKLING")) {
+    output["depickle_elapsed"] = wm.getDepickleElapsed();
+    output["depickle_countdown"] = wm.getDepickleCountdown();
+  }
+
+  if (!strcmp(wm.getStatus(), "PICKLED")) {
+    if (wm.pickledOnTimestamp > 1700000000)
+      output["pickled_on"] = wm.pickledOnTimestamp;
+  }
 };
 
 void BrineomaticController::mqttUpdateHook(MQTTController* mqtt)
 {
   JsonDocument output;
-  wm.generateUpdateJSON(output);
+  generateUpdateHook(output);
 
   // Convert temperature fields
   output["motor_temperature"] = convertTemperature(output["motor_temperature"], "celsius", wm.getTemperatureUnits());
@@ -1157,7 +1213,6 @@ void BrineomaticController::handleDeleteLogs(JsonVariantConst input, JsonVariant
   if (!LittleFS.remove("/run_log.json"))
     return _app.protocol.generateErrorJSON(output, "Error deleting logs.");
 }
-
 
 //
 // Configuration JSON: validation, loading, and saving.  Moved out of the

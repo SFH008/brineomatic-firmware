@@ -280,14 +280,10 @@ class Brineomatic
 
     void runStateMachine();
 
-    void generateUpdateJSON(JsonVariant output);
-
     // Live configuration.  Validation, loading, and saving of the config JSON
     // lives in BrineomaticController; it operates directly on this struct so
     // both classes reference the same data.
     BrineomaticConfig& getConfig() { return _config; }
-
-    void updateMQTT();
 
     void logResult(Status status, Result result);
 
