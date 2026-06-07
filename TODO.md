@@ -1,10 +1,6 @@
 # v2.7
 
-* move to config struct
-    * public config and public defaults.
-    * no more huge #define list
-    * move config handling to controller
-        * how to handle brineomatic class and brineomatic controller both needing the config.
+* move config handling to controller
 * configurable thresholds for gauges - issue #3
 * threshold indication on gauges - issue #9
 * add graphs (stored in psram)

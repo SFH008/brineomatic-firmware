@@ -32,6 +32,8 @@ Brineomatic::Brineomatic(YarrboardApp& app, RelayController& relays, ServoContro
                                                                                                                              waterTemperatureSensor(),
                                                                                                                              _adc(YB_ADS1115_ADDRESS)
 {
+  // start from the factory defaults; loadConfigJSON() overlays any saved settings
+  _config = defaults;
 }
 
 void Brineomatic::init()
@@ -115,7 +117,7 @@ void Brineomatic::init()
 
 // DS18B20 Sensor
 #if YB_DS18B20_MOTOR_PIN
-  if (motorTemperatureSensorType == "DS18B20") {
+  if (_config.motorTemperatureSensorType == "DS18B20") {
     motorTemperatureOneWire.begin(YB_DS18B20_MOTOR_PIN);
     motorTemperatureSensor.setOneWire(&motorTemperatureOneWire);
     motorTemperatureSensor.begin();
@@ -132,7 +134,7 @@ void Brineomatic::init()
 #endif
 
 #if YB_DS18B20_WATER_PIN
-  if (waterTemperatureSensorType == "DS18B20") {
+  if (_config.waterTemperatureSensorType == "DS18B20") {
     waterTemperatureOneWire.begin(YB_DS18B20_WATER_PIN);
     waterTemperatureSensor.setOneWire(&waterTemperatureOneWire);
     waterTemperatureSensor.begin();
@@ -149,11 +151,11 @@ void Brineomatic::init()
 #endif
 
 #ifdef YB_PRODUCT_FLOWMETER_PIN
-  productFlowmeter.begin(YB_PRODUCT_FLOWMETER_PIN, productFlowmeterPPL);
+  productFlowmeter.begin(YB_PRODUCT_FLOWMETER_PIN, _config.productFlowmeterPPL);
 #endif
 
 #ifdef YB_BRINE_FLOWMETER_PIN
-  brineFlowmeter.begin(YB_BRINE_FLOWMETER_PIN, brineFlowmeterPPL);
+  brineFlowmeter.begin(YB_BRINE_FLOWMETER_PIN, _config.brineFlowmeterPPL);
 #endif
 
   gravityTds.setAref(YB_ADS1115_VREF); // reference voltage on ADC
@@ -178,10 +180,10 @@ void Brineomatic::init()
 void Brineomatic::initModbus()
 {
 #ifdef YB_HAS_MODBUS
-  if (highPressurePumpControl == "MODBUS") {
-    if (highPressurePumpModbusDevice == "GD20") {
+  if (_config.highPressurePumpControl == "MODBUS") {
+    if (_config.highPressurePumpModbusDevice == "GD20") {
       gd20 = new GD20Modbus(YB_MODBUS_SERIAL, YB_MODBUS_RX, YB_MODBUS_TX);
-      gd20->begin(highPressurePumpModbusSlaveId);
+      gd20->begin(_config.highPressurePumpModbusSlaveId);
 
       uint16_t status = gd20->readStatusWord();
       gd20->decodeStatus(status);
@@ -214,7 +216,7 @@ void Brineomatic::loop()
 
 void Brineomatic::measureProductFlowmeter()
 {
-  if (!hasProductFlowSensor)
+  if (!_config.hasProductFlowSensor)
     return;
 
 #ifdef YB_PRODUCT_FLOWMETER_PIN
@@ -234,7 +236,7 @@ void Brineomatic::measureProductFlowmeter()
 
 void Brineomatic::measureBrineFlowmeter()
 {
-  if (!hasBrineFlowSensor)
+  if (!_config.hasBrineFlowSensor)
     return;
 
 #ifdef YB_BRINE_FLOWMETER_PIN
@@ -254,7 +256,7 @@ void Brineomatic::measureBrineFlowmeter()
 void Brineomatic::measureMotorTemperature()
 {
 #if YB_DS18B20_MOTOR_PIN
-  if (motorTemperatureSensorType != "DS18B20")
+  if (_config.motorTemperatureSensorType != "DS18B20")
     return;
 
   if (motorTemperatureSensor.isConversionComplete()) {
@@ -267,7 +269,7 @@ void Brineomatic::measureMotorTemperature()
 void Brineomatic::measureWaterTemperature()
 {
 #if YB_DS18B20_WATER_PIN
-  if (waterTemperatureSensorType != "DS18B20")
+  if (_config.waterTemperatureSensorType != "DS18B20")
     return;
 
   if (waterTemperatureSensor.isConversionComplete()) {
@@ -282,7 +284,7 @@ void Brineomatic::measureProductSalinity()
   int16_t reading = adcHelper->getAverageReading(YB_PRODUCT_TDS_CHANNEL);
   gravityTds.setTemperature(getWaterTemperature());
   gravityTds.update(reading);
-  currentProductSalinity = gravityTds.getTdsValue() + productTDSSensorOffset;
+  currentProductSalinity = gravityTds.getTdsValue() + _config.productTDSSensorOffset;
 }
 
 void Brineomatic::measureBrineSalinity()
@@ -290,7 +292,7 @@ void Brineomatic::measureBrineSalinity()
   int16_t reading = adcHelper->getAverageReading(YB_BRINE_TDS_CHANNEL);
   gravityTds.setTemperature(getWaterTemperature());
   gravityTds.update(reading);
-  currentBrineSalinity = gravityTds.getTdsValue() + brineTDSSensorOffset;
+  currentBrineSalinity = gravityTds.getTdsValue() + _config.brineTDSSensorOffset;
 }
 
 void Brineomatic::measureFilterPressure()
@@ -306,7 +308,7 @@ void Brineomatic::measureFilterPressure()
   if (amperage < 4.0)
     amperage = 4.0;
 
-  currentFilterPressure = map_generic(amperage, 4.0, 20.0, filterPressureSensorMin, filterPressureSensorMax);
+  currentFilterPressure = map_generic(amperage, 4.0, 20.0, _config.filterPressureSensorMin, _config.filterPressureSensorMax);
 }
 
 void Brineomatic::measureMembranePressure()
@@ -322,7 +324,7 @@ void Brineomatic::measureMembranePressure()
   if (amperage < 4.0)
     amperage = 4.0;
 
-  currentMembranePressure = map_generic(amperage, 4.0, 20.0, membranePressureSensorMin, membranePressureSensorMax);
+  currentMembranePressure = map_generic(amperage, 4.0, 20.0, _config.membranePressureSensorMin, _config.membranePressureSensorMax);
 }
 
 void Brineomatic::initChannels()
@@ -343,92 +345,92 @@ void Brineomatic::initChannels()
     ch.isEnabled = false;
   }
 
-  if (boostPumpControl.equals("RELAY")) {
-    boostPump = _relays.getChannelById(boostPumpRelayId);
+  if (_config.boostPumpControl.equals("RELAY")) {
+    boostPump = _relays.getChannelById(_config.boostPumpRelayId);
     if (boostPump) {
       boostPump->isEnabled = true;
-      boostPump->inverted = boostPumpRelayInverted;
+      boostPump->inverted = _config.boostPumpRelayInverted;
       boostPump->setName("Boost Pump");
       boostPump->setKey("boost_pump");
       strncpy(boostPump->type, "water_pump", sizeof(boostPump->type));
     } else
-      YBP.printf("Couldnt load bp relay %d\n", boostPumpRelayId);
+      YBP.printf("Couldnt load bp relay %d\n", _config.boostPumpRelayId);
   }
 
-  if (flushValveControl.equals("SERVO")) {
-    flushValveServo = _servos.getChannelById(flushValveServoId);
+  if (_config.flushValveControl.equals("SERVO")) {
+    flushValveServo = _servos.getChannelById(_config.flushValveServoId);
     flushValveServo->isEnabled = true;
     flushValveServo->setName("Flush Valve");
     flushValveServo->setKey("flush_valve");
-  } else if (flushValveControl.equals("RELAY")) {
-    flushValve = _relays.getChannelById(flushValveRelayId);
+  } else if (_config.flushValveControl.equals("RELAY")) {
+    flushValve = _relays.getChannelById(_config.flushValveRelayId);
     flushValve->isEnabled = true;
-    flushValve->inverted = flushValveRelayInverted;
+    flushValve->inverted = _config.flushValveRelayInverted;
     flushValve->setName("Flush Valve");
     flushValve->setKey("flush_valve");
     strncpy(flushValve->type, "solenoid", sizeof(flushValve->type));
   }
 
-  if (coolingFanControl.equals("RELAY")) {
-    coolingFan = _relays.getChannelById(coolingFanRelayId);
+  if (_config.coolingFanControl.equals("RELAY")) {
+    coolingFan = _relays.getChannelById(_config.coolingFanRelayId);
     coolingFan->isEnabled = true;
-    coolingFan->inverted = coolingFanRelayInverted;
+    coolingFan->inverted = _config.coolingFanRelayInverted;
     coolingFan->setName("Cooling Fan");
     coolingFan->setKey("cooling_fan");
     strncpy(coolingFan->type, "fan", sizeof(coolingFan->type));
   }
 
-  if (highPressurePumpControl.equals("RELAY")) {
-    highPressurePump = _relays.getChannelById(highPressureRelayId);
+  if (_config.highPressurePumpControl.equals("RELAY")) {
+    highPressurePump = _relays.getChannelById(_config.highPressureRelayId);
     highPressurePump->isEnabled = true;
-    highPressurePump->inverted = highPressureRelayInverted;
+    highPressurePump->inverted = _config.highPressureRelayInverted;
     highPressurePump->setName("High Pressure Pump");
     highPressurePump->setKey("hp_pump");
     strncpy(highPressurePump->type, "water_pump", sizeof(highPressurePump->type));
   }
 
-  if (diverterValveControl.equals("SERVO")) {
-    diverterValveServo = _servos.getChannelById(diverterValveServoId);
+  if (_config.diverterValveControl.equals("SERVO")) {
+    diverterValveServo = _servos.getChannelById(_config.diverterValveServoId);
     diverterValveServo->isEnabled = true;
     diverterValveServo->setName("Diverter Valve");
     diverterValveServo->setKey("diverter_valve");
-  } else if (diverterValveControl.equals("RELAY")) {
-    diverterValveRelay = _relays.getChannelById(diverterValveRelayId);
+  } else if (_config.diverterValveControl.equals("RELAY")) {
+    diverterValveRelay = _relays.getChannelById(_config.diverterValveRelayId);
     diverterValveRelay->isEnabled = true;
-    diverterValveRelay->inverted = diverterValveRelayInverted;
+    diverterValveRelay->inverted = _config.diverterValveRelayInverted;
     diverterValveRelay->defaultState = true; // diverter valve on = overboard.
     diverterValveRelay->setName("Diverter Valve");
     diverterValveRelay->setKey("diverter_valve");
-  } else if (diverterValveControl.equals("DUAL_RELAYS")) {
-    diverterValveTankRelay = _relays.getChannelById(diverterValveTankRelayId);
+  } else if (_config.diverterValveControl.equals("DUAL_RELAYS")) {
+    diverterValveTankRelay = _relays.getChannelById(_config.diverterValveTankRelayId);
     diverterValveTankRelay->isEnabled = true;
-    diverterValveTankRelay->inverted = diverterValveTankRelayInverted;
+    diverterValveTankRelay->inverted = _config.diverterValveTankRelayInverted;
     diverterValveTankRelay->setName("Diverter Valve Tank");
     diverterValveTankRelay->setKey("diverter_valve_tank");
-    diverterValveOverboardRelay = _relays.getChannelById(diverterValveOverboardRelayId);
+    diverterValveOverboardRelay = _relays.getChannelById(_config.diverterValveOverboardRelayId);
     diverterValveOverboardRelay->isEnabled = true;
-    diverterValveOverboardRelay->inverted = diverterValveOverboardRelayInverted;
+    diverterValveOverboardRelay->inverted = _config.diverterValveOverboardRelayInverted;
     diverterValveOverboardRelay->setName("Diverter Valve Overboard");
     diverterValveOverboardRelay->setKey("diverter_valve_overboard");
   }
 
-  if (highPressureValveControl.equals("STEPPER")) {
-    highPressureValveStepper = _steppers.getChannelById(highPressureValveStepperId);
+  if (_config.highPressureValveControl.equals("STEPPER")) {
+    highPressureValveStepper = _steppers.getChannelById(_config.highPressureValveStepperId);
     if (highPressureValveStepper) {
       highPressureValveStepper->isEnabled = true;
       highPressureValveStepper->setName("High Pressure Valve");
       highPressureValveStepper->setKey("hp_valve");
 
       float stepsPerDegree =
-        (YB_STEPPER_MICROSTEPS * highPressureValveStepperGearRatio) /
-        highPressureValveStepperStepAngle;
+        (YB_STEPPER_MICROSTEPS * _config.highPressureValveStepperGearRatio) /
+        _config.highPressureValveStepperStepAngle;
       highPressureValveStepper->setStepsPerDegree(stepsPerDegree);
-      highPressureValveStepper->setRunCurrent(highPressureValveStepperRunCurrent);
-      highPressureValveStepper->setHomeCurrent(highPressureValveStepperHomeCurrent);
-      highPressureValveStepper->setDirectionInverted(highPressureStepperInverted);
+      highPressureValveStepper->setRunCurrent(_config.highPressureValveStepperRunCurrent);
+      highPressureValveStepper->setHomeCurrent(_config.highPressureValveStepperHomeCurrent);
+      highPressureValveStepper->setDirectionInverted(_config.highPressureStepperInverted);
     } else {
-      YBP.printf("Error: high pressure valve stepper %d not found\n", highPressureValveStepperId);
-      highPressureValveControl = "NONE";
+      YBP.printf("Error: high pressure valve stepper %d not found\n", _config.highPressureValveStepperId);
+      _config.highPressureValveControl = "NONE";
     }
   }
 }
@@ -439,20 +441,20 @@ void Brineomatic::setMembranePressureTarget(float pressure)
 
   // we got a real pressure
   if (pressure >= 0) {
-    if (highPressureValveControl.equals("STEPPER")) {
+    if (_config.highPressureValveControl.equals("STEPPER")) {
       // static angle mode for now.
       if (pressure > 0) {
         highPressureValveStepper->gotoAngle(
-          highPressureValveStepperCloseAngle,
-          highPressureValveStepperCloseSpeed);
+          _config.highPressureValveStepperCloseAngle,
+          _config.highPressureValveStepperCloseSpeed);
       } else {
         highPressureValveStepper->gotoAngle(
-          highPressureValveStepperOpenAngle,
-          highPressureValveStepperOpenSpeed);
+          _config.highPressureValveStepperOpenAngle,
+          _config.highPressureValveStepperOpenSpeed);
       }
     }
 
-    // if (highPressureValveControl.equals("SERVO")) {
+    // if (_config.highPressureValveControl.equals("SERVO")) {
     //   membranePressurePID.Initialize();
     //   membranePressurePID.Reset();
 
@@ -462,9 +464,9 @@ void Brineomatic::setMembranePressureTarget(float pressure)
   }
   // negative target, we're done
   else {
-    if (highPressureValveControl.equals("STEPPER")) {
+    if (_config.highPressureValveControl.equals("STEPPER")) {
       YBP.println("target <= 0, disable our stepper");
-      highPressureValveStepper->gotoAngle(highPressureValveStepperOpenAngle, highPressureValveStepperOpenSpeed);
+      highPressureValveStepper->gotoAngle(_config.highPressureValveStepperOpenAngle, _config.highPressureValveStepperOpenSpeed);
       highPressureValveStepper->waitUntilStopped();
       highPressureValveStepper->disable();
     }
@@ -583,14 +585,14 @@ bool Brineomatic::initializeHardware(bool emergencyStop)
   if (currentMembranePressureTarget > 0) {
     setMembranePressureTarget(0);
 
-    if (hasMembranePressureSensor) {
+    if (_config.hasMembranePressureSensor) {
       uint32_t membranePressureStart = millis();
       YBP.println("Waiting for zero pressure.");
       while (getMembranePressure() > 4.5) {
         if (INTERVAL(250))
           YBP.print(".");
 
-        if (millis() - membranePressureStart > membranePressureTimeout) {
+        if (millis() - membranePressureStart > _config.membranePressureTimeout) {
           YBP.println("Membrane pressure timeout.");
           isFailure = true;
           break;
@@ -610,8 +612,8 @@ bool Brineomatic::initializeHardware(bool emergencyStop)
     disableBoostPump();
   }
 
-  if (highPressureValveControl.equals("STEPPER")) {
-    if (highPressureValveStepper->home(highPressureValveStepperOpenSpeed)) {
+  if (_config.highPressureValveControl.equals("STEPPER")) {
+    if (highPressureValveStepper->home(_config.highPressureValveStepperOpenSpeed)) {
       YBP.println("Stepper homing OK");
     } else {
       isFailure = true;
@@ -632,12 +634,12 @@ bool Brineomatic::autoflushEnabled()
   if (!hasFlushValve())
     return false;
 
-  return !autoflushMode.equals("NONE");
+  return !_config.autoflushMode.equals("NONE");
 }
 
 bool Brineomatic::hasBoostPump()
 {
-  return !boostPumpControl.equals("NONE");
+  return !_config.boostPumpControl.equals("NONE");
 }
 
 bool Brineomatic::isBoostPumpOn()
@@ -649,7 +651,7 @@ void Brineomatic::enableBoostPump()
 {
   if (hasBoostPump()) {
     YBP.println("Boost Pump ON");
-    if (boostPumpControl.equals("RELAY"))
+    if (_config.boostPumpControl.equals("RELAY"))
       boostPump->setState(true);
   }
   boostPumpOnState = true;
@@ -659,7 +661,7 @@ void Brineomatic::disableBoostPump()
 {
   if (hasBoostPump()) {
     YBP.println("Boost Pump OFF");
-    if (boostPumpControl.equals("RELAY"))
+    if (_config.boostPumpControl.equals("RELAY"))
       boostPump->setState(false);
   }
   boostPumpOnState = false;
@@ -667,7 +669,7 @@ void Brineomatic::disableBoostPump()
 
 bool Brineomatic::hasHighPressurePump()
 {
-  return !highPressurePumpControl.equals("NONE");
+  return !_config.highPressurePumpControl.equals("NONE");
 }
 
 bool Brineomatic::isHighPressurePumpOn()
@@ -679,9 +681,9 @@ void Brineomatic::enableHighPressurePump()
 {
   if (hasHighPressurePump()) {
     YBP.println("High Pressure Pump ON");
-    if (highPressurePumpControl.equals("RELAY"))
+    if (_config.highPressurePumpControl.equals("RELAY"))
       highPressurePump->setState(true);
-    else if (highPressurePumpControl.equals("MODBUS"))
+    else if (_config.highPressurePumpControl.equals("MODBUS"))
       modbusEnableHighPressurePump();
   }
   highPressurePumpOnState = true;
@@ -691,9 +693,9 @@ void Brineomatic::disableHighPressurePump()
 {
   if (hasHighPressurePump()) {
     YBP.println("High Pressure Pump OFF");
-    if (highPressurePumpControl.equals("RELAY"))
+    if (_config.highPressurePumpControl.equals("RELAY"))
       highPressurePump->setState(false);
-    else if (highPressurePumpControl.equals("MODBUS"))
+    else if (_config.highPressurePumpControl.equals("MODBUS"))
       modbusDisableHighPressurePump();
   }
   highPressurePumpOnState = false;
@@ -702,9 +704,9 @@ void Brineomatic::disableHighPressurePump()
 void Brineomatic::modbusEnableHighPressurePump()
 {
 #ifdef YB_HAS_MODBUS
-  if (highPressurePumpModbusDevice.equals("GD20")) {
+  if (_config.highPressurePumpModbusDevice.equals("GD20")) {
     YBP.println("GD20 Pump Enable");
-    gd20->setFrequency(highPressurePumpModbusFrequency);
+    gd20->setFrequency(_config.highPressurePumpModbusFrequency);
     gd20->runMotor();
   }
 #endif
@@ -713,7 +715,7 @@ void Brineomatic::modbusEnableHighPressurePump()
 void Brineomatic::modbusDisableHighPressurePump()
 {
 #ifdef YB_HAS_MODBUS
-  if (highPressurePumpModbusDevice.equals("GD20")) {
+  if (_config.highPressurePumpModbusDevice.equals("GD20")) {
     YBP.println("GD20 Pump Disable");
     gd20->stopMotor();
   }
@@ -722,7 +724,7 @@ void Brineomatic::modbusDisableHighPressurePump()
 
 bool Brineomatic::hasDiverterValve()
 {
-  return !diverterValveControl.equals("NONE");
+  return !_config.diverterValveControl.equals("NONE");
 }
 
 bool Brineomatic::isDiverterValveOpen()
@@ -734,13 +736,13 @@ void Brineomatic::openDiverterValve()
 {
   if (hasDiverterValve()) {
     YBP.println("Diverter Valve Open");
-    if (diverterValveControl.equals("SERVO"))
-      diverterValveServo->write(diverterValveOpenAngle);
-    else if (diverterValveControl.equals("RELAY"))
+    if (_config.diverterValveControl.equals("SERVO"))
+      diverterValveServo->write(_config.diverterValveOpenAngle);
+    else if (_config.diverterValveControl.equals("RELAY"))
       diverterValveRelay->setState(true);
-    else if (diverterValveControl.equals("DUAL_RELAYS")) {
+    else if (_config.diverterValveControl.equals("DUAL_RELAYS")) {
       diverterValveOverboardRelay->setState(true);
-      delay(diverterValveRelayChangeInterval);
+      delay(_config.diverterValveRelayChangeInterval);
       diverterValveTankRelay->setState(false);
     }
   }
@@ -751,13 +753,13 @@ void Brineomatic::closeDiverterValve()
 {
   if (hasDiverterValve()) {
     YBP.println("Diverter Valve Closed");
-    if (diverterValveControl.equals("SERVO"))
-      diverterValveServo->write(diverterValveCloseAngle);
-    else if (diverterValveControl.equals("RELAY"))
+    if (_config.diverterValveControl.equals("SERVO"))
+      diverterValveServo->write(_config.diverterValveCloseAngle);
+    else if (_config.diverterValveControl.equals("RELAY"))
       diverterValveRelay->setState(false);
-    else if (diverterValveControl.equals("DUAL_RELAYS")) {
+    else if (_config.diverterValveControl.equals("DUAL_RELAYS")) {
       diverterValveTankRelay->setState(true);
-      delay(diverterValveRelayChangeInterval);
+      delay(_config.diverterValveRelayChangeInterval);
       diverterValveOverboardRelay->setState(false);
     }
   }
@@ -766,7 +768,7 @@ void Brineomatic::closeDiverterValve()
 
 bool Brineomatic::hasFlushValve()
 {
-  return !flushValveControl.equals("NONE");
+  return !_config.flushValveControl.equals("NONE");
 }
 
 bool Brineomatic::isFlushValveOpen()
@@ -778,9 +780,9 @@ void Brineomatic::openFlushValve()
 {
   if (hasFlushValve()) {
     YBP.println("Flush Valve Open");
-    if (flushValveControl.equals("SERVO"))
-      flushValveServo->write(flushValveOpenAngle);
-    else if (flushValveControl.equals("RELAY"))
+    if (_config.flushValveControl.equals("SERVO"))
+      flushValveServo->write(_config.flushValveOpenAngle);
+    else if (_config.flushValveControl.equals("RELAY"))
       flushValve->setState(true);
   }
   flushValveOpenState = true;
@@ -790,9 +792,9 @@ void Brineomatic::closeFlushValve()
 {
   if (hasFlushValve()) {
     YBP.println("Flush Valve Closed");
-    if (flushValveControl.equals("SERVO"))
-      flushValveServo->write(flushValveCloseAngle);
-    else if (flushValveControl.equals("RELAY"))
+    if (_config.flushValveControl.equals("SERVO"))
+      flushValveServo->write(_config.flushValveCloseAngle);
+    else if (_config.flushValveControl.equals("RELAY"))
       flushValve->setState(false);
   }
   flushValveOpenState = false;
@@ -800,7 +802,7 @@ void Brineomatic::closeFlushValve()
 
 bool Brineomatic::hasCoolingFan()
 {
-  return !coolingFanControl.equals("NONE");
+  return !_config.coolingFanControl.equals("NONE");
 }
 
 bool Brineomatic::isCoolingFanOn()
@@ -812,7 +814,7 @@ void Brineomatic::enableCoolingFan()
 {
   if (hasCoolingFan()) {
     // YBP.println("Cooling Fan ON");
-    if (coolingFanControl.equals("RELAY"))
+    if (_config.coolingFanControl.equals("RELAY"))
       coolingFan->setState(true);
   }
   coolingFanOnState = true;
@@ -822,7 +824,7 @@ void Brineomatic::disableCoolingFan()
 {
   if (hasCoolingFan()) {
     // YBP.println("Cooling Fan OFF");
-    if (coolingFanControl.equals("RELAY"))
+    if (_config.coolingFanControl.equals("RELAY"))
       coolingFan->setState(false);
   }
   coolingFanOnState = false;
@@ -832,9 +834,9 @@ void Brineomatic::manageCoolingFan()
 {
   if (currentStatus != Status::MANUAL) {
     if (hasCoolingFan() && hasMotorTemperature()) {
-      if (getMotorTemperature() >= coolingFanOnTemperature)
+      if (getMotorTemperature() >= _config.coolingFanOnTemperature)
         enableCoolingFan();
-      else if (getMotorTemperature() <= coolingFanOffTemperature)
+      else if (getMotorTemperature() <= _config.coolingFanOffTemperature)
         disableCoolingFan();
     }
   }
@@ -847,7 +849,7 @@ float Brineomatic::getFilterPressure()
 
 float Brineomatic::getFilterPressureMinimum()
 {
-  return filterPressureLowThreshold;
+  return _config.filterPressureLowThreshold;
 }
 
 float Brineomatic::getMembranePressure()
@@ -857,7 +859,7 @@ float Brineomatic::getMembranePressure()
 
 float Brineomatic::getMembranePressureMinimum()
 {
-  return membranePressureLowThreshold;
+  return _config.membranePressureLowThreshold;
 }
 
 float Brineomatic::getProductFlowrate()
@@ -872,7 +874,7 @@ float Brineomatic::getBrineFlowrate()
 
 float Brineomatic::getProductFlowrateMinimum()
 {
-  return productFlowrateLowThreshold;
+  return _config.productFlowrateLowThreshold;
 }
 
 float Brineomatic::getTotalFlowrate()
@@ -940,7 +942,7 @@ float Brineomatic::getMotorTemperature()
 
 float Brineomatic::getMotorTemperatureMaximum()
 {
-  return motorTemperatureHighThreshold;
+  return _config.motorTemperatureHighThreshold;
 }
 
 float Brineomatic::getProductSalinity()
@@ -955,7 +957,7 @@ float Brineomatic::getBrineSalinity()
 
 float Brineomatic::getProductSalinityMaximum()
 {
-  return productSalinityHighThreshold;
+  return _config.productSalinityHighThreshold;
 }
 
 float Brineomatic::getTankLevel()
@@ -965,7 +967,7 @@ float Brineomatic::getTankLevel()
 
 float Brineomatic::getTankCapacity()
 {
-  return tankCapacity;
+  return _config.tankCapacity;
 }
 
 float Brineomatic::getBatteryLevel()
@@ -975,22 +977,22 @@ float Brineomatic::getBatteryLevel()
 
 const char* Brineomatic::getTemperatureUnits()
 {
-  return temperatureUnits.c_str();
+  return _config.temperatureUnits.c_str();
 }
 
 const char* Brineomatic::getPressureUnits()
 {
-  return pressureUnits.c_str();
+  return _config.pressureUnits.c_str();
 }
 
 const char* Brineomatic::getVolumeUnits()
 {
-  return volumeUnits.c_str();
+  return _config.volumeUnits.c_str();
 }
 
 const char* Brineomatic::getFlowrateUnits()
 {
-  return flowrateUnits.c_str();
+  return _config.flowrateUnits.c_str();
 }
 
 const char* Brineomatic::getStatus()
@@ -1064,7 +1066,7 @@ uint32_t Brineomatic::getNextFlushCountdown()
     else
       elapsed = millis() - lastAutoflushTimeMillis;
 
-    return autoflushInterval - elapsed;
+    return _config.autoflushInterval - elapsed;
   }
 
   return 0;
@@ -1127,7 +1129,7 @@ uint32_t Brineomatic::getFlushCountdown()
       return remainingMillis;
     }
   } else {
-    int32_t countdown = flushTimeout - (millis() - flushStart);
+    int32_t countdown = _config.flushTimeout - (millis() - flushStart);
     if (countdown > 0)
       return countdown;
   }
@@ -1169,47 +1171,47 @@ uint32_t Brineomatic::getDepickleCountdown()
 
 bool Brineomatic::hasMotorTemperature()
 {
-  return motorTemperatureSensorType != "NONE";
+  return _config.motorTemperatureSensorType != "NONE";
 }
 
 bool Brineomatic::hasWaterTemperature()
 {
-  return waterTemperatureSensorType != "NONE";
+  return _config.waterTemperatureSensorType != "NONE";
 }
 
 bool Brineomatic::hasHighPressureValve()
 {
-  return !highPressureValveControl.equals("NONE");
+  return !_config.highPressureValveControl.equals("NONE");
 }
 
 bool Brineomatic::hasFilterPressure()
 {
-  return hasFilterPressureSensor;
+  return _config.hasFilterPressureSensor;
 }
 
 bool Brineomatic::hasMembranePressure()
 {
-  return hasMembranePressureSensor;
+  return _config.hasMembranePressureSensor;
 }
 
 bool Brineomatic::hasProductFlow()
 {
-  return hasProductFlowSensor;
+  return _config.hasProductFlowSensor;
 }
 
 bool Brineomatic::hasBrineFlow()
 {
-  return hasBrineFlowSensor;
+  return _config.hasBrineFlowSensor;
 }
 
 bool Brineomatic::hasProductTDS()
 {
-  return hasProductTDSSensor;
+  return _config.hasProductTDSSensor;
 }
 
 bool Brineomatic::hasBrineTDS()
 {
-  return hasBrineTDSSensor;
+  return _config.hasBrineTDSSensor;
 }
 
 void Brineomatic::manageHighPressureValve()
@@ -1290,12 +1292,12 @@ void Brineomatic::runStateMachine()
         else
           elapsed = millis() - lastAutoflushTimeMillis;
 
-        if (elapsed > autoflushInterval) {
-          if (autoflushMode.equals("TIME"))
-            flushDuration(autoflushDuration);
-          else if (autoflushMode.equals("VOLUME"))
-            flushVolume(autoflushVolume);
-          else if (autoflushMode.equals("SALINITY"))
+        if (elapsed > _config.autoflushInterval) {
+          if (_config.autoflushMode.equals("TIME"))
+            flushDuration(_config.autoflushDuration);
+          else if (_config.autoflushMode.equals("VOLUME"))
+            flushVolume(_config.autoflushVolume);
+          else if (_config.autoflushMode.equals("SALINITY"))
             flush();
         }
       }
@@ -1330,9 +1332,9 @@ void Brineomatic::runStateMachine()
       if (hasBoostPump()) {
         YBP.println("Boost Pump Started");
         enableBoostPump();
-        vTaskDelay(pdMS_TO_TICKS(boostPumpDelay));
+        vTaskDelay(pdMS_TO_TICKS(_config.boostPumpDelay));
 
-        if (hasFilterPressureSensor && enableFilterPressureLowCheck) {
+        if (_config.hasFilterPressureSensor && _config.enableFilterPressureLowCheck) {
           while (getFilterPressure() < getFilterPressureMinimum()) {
             if (checkStopFlag(runResult))
               return logResult(Status::RUNNING, runResult);
@@ -1350,9 +1352,9 @@ void Brineomatic::runStateMachine()
       }
 
       enableHighPressurePump();
-      vTaskDelay(pdMS_TO_TICKS(highPressurePumpDelay));
+      vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
-      setMembranePressureTarget(membranePressureTarget);
+      setMembranePressureTarget(_config.membranePressureTarget);
 
       if (waitForMembranePressure()) {
         YBP.println("Membrane Pressure Error");
@@ -1409,7 +1411,7 @@ void Brineomatic::runStateMachine()
         if (checkStopFlag(runResult))
           return logResult(Status::RUNNING, runResult);
 
-        if (millis() - productionStart > productionRuntimeTimeout) {
+        if (millis() - productionStart > _config.productionRuntimeTimeout) {
           currentStatus = Status::STOPPING;
           runResult = Result::ERR_PRODUCTION_TIMEOUT;
           return logResult(Status::RUNNING, runResult);
@@ -1481,17 +1483,17 @@ void Brineomatic::runStateMachine()
         return;
       } else {
         if (success)
-          _app.playMelody(successMelody.c_str());
+          _app.playMelody(_config.successMelody.c_str());
         else
-          _app.playMelody(errorMelody.c_str());
+          _app.playMelody(_config.errorMelody.c_str());
 
-        if (autoflushMode.equals("TIME"))
-          flushDuration(autoflushDuration);
-        else if (autoflushMode.equals("VOLUME"))
-          flushVolume(autoflushVolume);
-        else if (autoflushMode.equals("SALINITY"))
+        if (_config.autoflushMode.equals("TIME"))
+          flushDuration(_config.autoflushDuration);
+        else if (_config.autoflushMode.equals("VOLUME"))
+          flushVolume(_config.autoflushVolume);
+        else if (_config.autoflushMode.equals("SALINITY"))
           flush();
-        else if (autoflushMode.equals("NONE"))
+        else if (_config.autoflushMode.equals("NONE"))
           currentStatus = Status::IDLE;
         else
           currentStatus = Status::IDLE;
@@ -1526,9 +1528,9 @@ void Brineomatic::runStateMachine()
 
       // start up our hardware
       openFlushValve();
-      if (autoflushUseHighPressureMotor) {
+      if (_config.autoflushUseHighPressureMotor) {
         enableHighPressurePump();
-        vTaskDelay(pdMS_TO_TICKS(highPressurePumpDelay));
+        vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
       }
 
       // check our sensors while we flush
@@ -1543,7 +1545,7 @@ void Brineomatic::runStateMachine()
         if (checkFlushTankLevelLow())
           break;
 
-        if (hasHighPressurePump() && autoflushUseHighPressureMotor && checkMotorTemperature(flushResult))
+        if (hasHighPressurePump() && _config.autoflushUseHighPressureMotor && checkMotorTemperature(flushResult))
           break;
 
         if (checkStopFlag(flushResult))
@@ -1565,7 +1567,7 @@ void Brineomatic::runStateMachine()
 
         // how about salinity? (auto)
         if (desiredFlushDuration == 0 && desiredFlushVolume == 0) {
-          if (getBrineSalinity() < autoflushSalinity) {
+          if (getBrineSalinity() < _config.autoflushSalinity) {
             DUMP("SALINITY");
             flushResult = Result::SUCCESS_SALINITY;
             break;
@@ -1573,7 +1575,7 @@ void Brineomatic::runStateMachine()
         }
 
         // did we hit our flush timeout?
-        if (getFlushElapsed() > flushTimeout) {
+        if (getFlushElapsed() > _config.flushTimeout) {
           flushResult = Result::ERR_FLUSH_TIMEOUT;
           break;
         }
@@ -1625,7 +1627,7 @@ void Brineomatic::runStateMachine()
       }
 
       enableHighPressurePump();
-      vTaskDelay(pdMS_TO_TICKS(highPressurePumpDelay));
+      vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
       while (getPickleElapsed() < pickleDuration) {
         if (stopFlag)
@@ -1682,7 +1684,7 @@ void Brineomatic::runStateMachine()
       }
 
       enableHighPressurePump();
-      vTaskDelay(pdMS_TO_TICKS(highPressurePumpDelay));
+      vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
       while (getDepickleElapsed() < depickleDuration) {
         if (stopFlag)
@@ -1752,211 +1754,211 @@ bool Brineomatic::checkStopFlag(Result& result)
 
 bool Brineomatic::checkMembranePressureHigh()
 {
-  if (!hasMembranePressureSensor)
+  if (!_config.hasMembranePressureSensor)
     return false;
 
-  if (!enableMembranePressureHighCheck)
+  if (!_config.enableMembranePressureHighCheck)
     return false;
 
   return checkTimedError(
-    getMembranePressure() > membranePressureHighThreshold,
+    getMembranePressure() > _config.membranePressureHighThreshold,
     membranePressureHighStart,
-    membranePressureHighDelay,
+    _config.membranePressureHighDelay,
     Result::ERR_MEMBRANE_PRESSURE_HIGH,
     runResult);
 }
 
 bool Brineomatic::checkMembranePressureLow()
 {
-  if (!hasMembranePressureSensor)
+  if (!_config.hasMembranePressureSensor)
     return false;
 
-  if (!enableMembranePressureLowCheck)
+  if (!_config.enableMembranePressureLowCheck)
     return false;
 
   return checkTimedError(
-    getMembranePressure() < membranePressureLowThreshold,
+    getMembranePressure() < _config.membranePressureLowThreshold,
     membranePressureLowStart,
-    membranePressureLowDelay,
+    _config.membranePressureLowDelay,
     Result::ERR_MEMBRANE_PRESSURE_LOW,
     runResult);
 }
 
 bool Brineomatic::checkFilterPressureHigh()
 {
-  if (!hasFilterPressureSensor)
+  if (!_config.hasFilterPressureSensor)
     return false;
 
-  if (!enableFilterPressureHighCheck)
+  if (!_config.enableFilterPressureHighCheck)
     return false;
 
   return checkTimedError(
-    getFilterPressure() > filterPressureHighThreshold,
+    getFilterPressure() > _config.filterPressureHighThreshold,
     filterPressureHighStart,
-    filterPressureHighDelay,
+    _config.filterPressureHighDelay,
     Result::ERR_FILTER_PRESSURE_HIGH,
     runResult);
 }
 
 bool Brineomatic::checkFilterPressureLow()
 {
-  if (!hasFilterPressureSensor)
+  if (!_config.hasFilterPressureSensor)
     return false;
 
-  if (!enableFilterPressureLowCheck)
+  if (!_config.enableFilterPressureLowCheck)
     return false;
 
   return checkTimedError(
-    getFilterPressure() < filterPressureLowThreshold,
+    getFilterPressure() < _config.filterPressureLowThreshold,
     filterPressureLowStart,
-    filterPressureLowDelay,
+    _config.filterPressureLowDelay,
     Result::ERR_FILTER_PRESSURE_LOW,
     runResult);
 }
 
 bool Brineomatic::checkProductFlowrateLow()
 {
-  if (!hasProductFlowSensor)
+  if (!_config.hasProductFlowSensor)
     return false;
 
-  if (!enableProductFlowrateLowCheck)
+  if (!_config.enableProductFlowrateLowCheck)
     return false;
 
   return checkTimedError(
     getProductFlowrate() < getProductFlowrateMinimum(),
     productFlowrateLowStart,
-    productFlowrateLowDelay,
+    _config.productFlowrateLowDelay,
     Result::ERR_PRODUCT_FLOWRATE_LOW,
     runResult);
 }
 
 bool Brineomatic::checkProductFlowrateHigh()
 {
-  if (!hasProductFlowSensor)
+  if (!_config.hasProductFlowSensor)
     return false;
 
-  if (!enableProductFlowrateHighCheck)
+  if (!_config.enableProductFlowrateHighCheck)
     return false;
 
   return checkTimedError(
-    getProductFlowrate() > productFlowrateHighThreshold,
+    getProductFlowrate() > _config.productFlowrateHighThreshold,
     productFlowrateHighStart,
-    productFlowrateHighDelay,
+    _config.productFlowrateHighDelay,
     Result::ERR_PRODUCT_FLOWRATE_HIGH,
     runResult);
 }
 
 bool Brineomatic::checkPickleTotalFlowrateLow(Result& result)
 {
-  if (!hasBrineFlowSensor)
+  if (!_config.hasBrineFlowSensor)
     return false;
 
-  if (!enablePickleTotalFlowrateLowCheck)
+  if (!_config.enablePickleTotalFlowrateLowCheck)
     return false;
 
   return checkTimedError(
-    getBrineFlowrate() < pickleTotalFlowrateLowThreshold,
+    getBrineFlowrate() < _config.pickleTotalFlowrateLowThreshold,
     brineFlowrateLowStart,
-    pickleTotalFlowrateLowDelay,
+    _config.pickleTotalFlowrateLowDelay,
     Result::ERR_BRINE_FLOWRATE_LOW,
     result);
 }
 
 bool Brineomatic::checkFlushFilterPressureLow()
 {
-  if (!hasFilterPressureSensor)
+  if (!_config.hasFilterPressureSensor)
     return false;
 
-  if (!enableFlushFilterPressureLowCheck)
+  if (!_config.enableFlushFilterPressureLowCheck)
     return false;
 
   return checkTimedError(
-    getFilterPressure() < flushFilterPressureLowThreshold,
+    getFilterPressure() < _config.flushFilterPressureLowThreshold,
     flushFilterPressureLowStart,
-    flushFilterPressureLowDelay,
+    _config.flushFilterPressureLowDelay,
     Result::ERR_FLUSH_FILTER_PRESSURE_LOW,
     flushResult);
 }
 
 bool Brineomatic::checkFlushFlowrateLow()
 {
-  if (!hasBrineFlowSensor)
+  if (!_config.hasBrineFlowSensor)
     return false;
 
-  if (!enableFlushFlowrateLowCheck)
+  if (!_config.enableFlushFlowrateLowCheck)
     return false;
 
   return checkTimedError(
-    getBrineFlowrate() < flushFlowrateLowThreshold,
+    getBrineFlowrate() < _config.flushFlowrateLowThreshold,
     flushFlowrateLowStart,
-    flushFlowrateLowDelay,
+    _config.flushFlowrateLowDelay,
     Result::ERR_FLUSH_FLOWRATE_LOW,
     flushResult);
 }
 
 bool Brineomatic::checkFlushTankLevelLow()
 {
-  if (tankLevelSensorType.equals("NONE"))
+  if (_config.tankLevelSensorType.equals("NONE"))
     return false;
 
-  if (!enableFlushTankLevelLowCheck)
+  if (!_config.enableFlushTankLevelLowCheck)
     return false;
 
   return checkTimedError(
-    currentTankLevel < flushTankLevelLowThreshold,
+    currentTankLevel < _config.flushTankLevelLowThreshold,
     flushTankLevelLowStart,
-    flushTankLevelLowDelay,
+    _config.flushTankLevelLowDelay,
     Result::ERR_FLUSH_TANK_LEVEL_LOW,
     flushResult);
 }
 
 bool Brineomatic::checkRunTotalFlowrateLow()
 {
-  if (!hasBrineFlowSensor)
+  if (!_config.hasBrineFlowSensor)
     return false;
 
-  if (!enableRunTotalFlowrateLowCheck)
+  if (!_config.enableRunTotalFlowrateLowCheck)
     return false;
 
   return checkTimedError(
-    getTotalFlowrate() < runTotalFlowrateLowThreshold,
+    getTotalFlowrate() < _config.runTotalFlowrateLowThreshold,
     totalFlowrateLowStart,
-    runTotalFlowrateLowDelay,
+    _config.runTotalFlowrateLowDelay,
     Result::ERR_TOTAL_FLOWRATE_LOW,
     runResult);
 }
 
 bool Brineomatic::checkDiverterValveClosed()
 {
-  // if (!hasProductFlowSensor)
+  // if (!_config.hasProductFlowSensor)
   //   return false;
 
-  if (!hasBrineFlowSensor)
+  if (!_config.hasBrineFlowSensor)
     return false;
 
-  if (!enableDiverterValveClosedCheck)
+  if (!_config.enableDiverterValveClosedCheck)
     return false;
 
   return checkTimedError(
-    getBrineFlowrate() > diverterValveClosedFlowrateHighThreshold,
+    getBrineFlowrate() > _config.diverterValveClosedFlowrateHighThreshold,
     diverterValveOpenStart,
-    diverterValveClosedDelay,
+    _config.diverterValveClosedDelay,
     Result::ERR_DIVERTER_VALVE_OPEN,
     runResult);
 }
 
 bool Brineomatic::checkProductSalinityHigh()
 {
-  if (!hasProductTDSSensor)
+  if (!_config.hasProductTDSSensor)
     return false;
 
-  if (!enableProductSalinityHighCheck)
+  if (!_config.enableProductSalinityHighCheck)
     return false;
 
   return checkTimedError(
     getProductSalinity() > getProductSalinityMaximum(),
     productSalinityHighStart,
-    productSalinityHighDelay,
+    _config.productSalinityHighDelay,
     Result::ERR_PRODUCT_SALINITY_HIGH,
     runResult);
 }
@@ -1966,13 +1968,13 @@ bool Brineomatic::checkMotorTemperature(Result& result)
   if (!hasMotorTemperature())
     return false;
 
-  if (!enableMotorTemperatureCheck)
+  if (!_config.enableMotorTemperatureCheck)
     return false;
 
   return checkTimedError(
     getMotorTemperature() > getMotorTemperatureMaximum(),
     motorTemperatureStart,
-    motorTemperatureHighDelay,
+    _config.motorTemperatureHighDelay,
     Result::ERR_MOTOR_TEMPERATURE_HIGH,
     result);
 }
@@ -2005,7 +2007,7 @@ bool Brineomatic::checkTimedError(bool condition,
 bool Brineomatic::waitForMembranePressure()
 {
   // skip this if we dont have the sensor
-  if (!hasMembranePressureSensor)
+  if (!_config.hasMembranePressureSensor)
     return false;
 
   YBP.println("Wait for Membrane Pressure");
@@ -2025,7 +2027,7 @@ bool Brineomatic::waitForMembranePressure()
     if (checkStopFlag(runResult))
       return true;
 
-    if (millis() - highPressurePumpStart > membranePressureTimeout) {
+    if (millis() - highPressurePumpStart > _config.membranePressureTimeout) {
       currentStatus = Status::STOPPING;
       runResult = Result::ERR_MEMBRANE_PRESSURE_TIMEOUT;
       return true;
@@ -2034,7 +2036,7 @@ bool Brineomatic::waitForMembranePressure()
     if (getMembranePressure() >= getMembranePressureMinimum()) {
       if (stableStart == 0)
         stableStart = millis();
-      else if (millis() - stableStart >= membranePressureStabilizationTime) {
+      else if (millis() - stableStart >= _config.membranePressureStabilizationTime) {
         YBP.println("High Pressure Pump OK");
         return false;
       }
@@ -2048,7 +2050,7 @@ bool Brineomatic::waitForMembranePressure()
 
 bool Brineomatic::waitForProductFlowrate()
 {
-  if (!hasProductFlowSensor)
+  if (!_config.hasProductFlowSensor)
     return false;
 
   YBP.println("Wait for Product Flowrate");
@@ -2062,16 +2064,16 @@ bool Brineomatic::waitForProductFlowrate()
     if (checkStopFlag(runResult))
       return true;
 
-    if (millis() - flowCheckStart > productFlowrateTimeout) {
+    if (millis() - flowCheckStart > _config.productFlowrateTimeout) {
       currentStatus = Status::STOPPING;
       runResult = Result::ERR_PRODUCT_FLOWRATE_TIMEOUT;
       return true;
     }
 
-    if (getProductFlowrate() > getProductFlowrateMinimum() && getProductFlowrate() < productFlowrateHighThreshold) {
+    if (getProductFlowrate() > getProductFlowrateMinimum() && getProductFlowrate() < _config.productFlowrateHighThreshold) {
       if (stableStart == 0)
         stableStart = millis();
-      else if (millis() - stableStart >= productFlowrateStabilizationTime) {
+      else if (millis() - stableStart >= _config.productFlowrateStabilizationTime) {
         YBP.println("Flowrate OK");
         return false;
       }
@@ -2085,7 +2087,7 @@ bool Brineomatic::waitForProductFlowrate()
 
 bool Brineomatic::waitForProductSalinity()
 {
-  if (!hasProductTDSSensor)
+  if (!_config.hasProductTDSSensor)
     return false;
 
   YBP.println("Wait for Product Salinity");
@@ -2099,7 +2101,7 @@ bool Brineomatic::waitForProductSalinity()
     if (checkStopFlag(runResult))
       return true;
 
-    if (millis() - salinityCheckStart > productSalinityTimeout) {
+    if (millis() - salinityCheckStart > _config.productSalinityTimeout) {
       currentStatus = Status::STOPPING;
       runResult = Result::ERR_PRODUCT_SALINITY_TIMEOUT;
       return true;
@@ -2108,7 +2110,7 @@ bool Brineomatic::waitForProductSalinity()
     if (getProductSalinity() < getProductSalinityMaximum()) {
       if (stableStart == 0)
         stableStart = millis();
-      else if (millis() - stableStart >= productSalinityStabilizationTime) {
+      else if (millis() - stableStart >= _config.productSalinityStabilizationTime) {
         YBP.println("Salinity OK");
         return false;
       }
@@ -2122,10 +2124,10 @@ bool Brineomatic::waitForProductSalinity()
 
 bool Brineomatic::waitForFlushValveOff()
 {
-  if (!enableFlushValveOffCheck)
+  if (!_config.enableFlushValveOffCheck)
     return false;
 
-  if (!hasFilterPressureSensor && !hasBrineFlowSensor)
+  if (!_config.hasFilterPressureSensor && !_config.hasBrineFlowSensor)
     return false;
 
   YBP.println("Wait for Flush Valve Off");
@@ -2134,7 +2136,7 @@ bool Brineomatic::waitForFlushValveOff()
 
   bool done = false;
   while (!done) {
-    if (millis() - start > flushValveOffDelay) {
+    if (millis() - start > _config.flushValveOffDelay) {
       currentStatus = Status::IDLE;
       flushResult = Result::ERR_FLUSH_VALVE_ON;
       return true;
@@ -2142,11 +2144,11 @@ bool Brineomatic::waitForFlushValveOff()
 
     done = true;
 
-    if (hasFilterPressureSensor)
-      if (getFilterPressure() > flushValveOffThreshold)
+    if (_config.hasFilterPressureSensor)
+      if (getFilterPressure() > _config.flushValveOffThreshold)
         done = false;
 
-    if (hasBrineFlowSensor)
+    if (_config.hasBrineFlowSensor)
       if (getBrineFlowrate() > 0)
         done = false;
 
@@ -2158,32 +2160,32 @@ bool Brineomatic::waitForFlushValveOff()
 
 bool Brineomatic::checkTankLevel()
 {
-  if (tankLevelSensorType.equals("NONE"))
+  if (_config.tankLevelSensorType.equals("NONE"))
     return false;
 
   if (currentTankLevel < 0)
     return false;
 
-  if (!enableTankLevelFullCheck)
+  if (!_config.enableTankLevelFullCheck)
     return false;
 
   return checkTimedError(
-    currentTankLevel >= tankLevelFullThreshold,
+    currentTankLevel >= _config.tankLevelFullThreshold,
     tankLevelFullStart,
-    tankLevelFullDelay,
+    _config.tankLevelFullDelay,
     Result::SUCCESS_TANK_LEVEL,
     runResult);
 }
 
 bool Brineomatic::checkBatteryLevel(Result& result)
 {
-  if (batteryLevelSensorType.equals("NONE"))
+  if (_config.batteryLevelSensorType.equals("NONE"))
     return false;
 
-  if (!enableBatteryLevelLowCheck)
+  if (!_config.enableBatteryLevelLowCheck)
     return false;
 
-  if (currentBatteryLevel <= batteryLevelLowThreshold) {
+  if (currentBatteryLevel <= _config.batteryLevelLowThreshold) {
     currentStatus = Status::STOPPING;
     result = Result::ERR_BATTERY_LEVEL;
     return true;
@@ -2264,178 +2266,178 @@ void Brineomatic::generateConfigJSON(JsonVariant output, UserRole role, ConfigPu
     output["has_cooling_fan"] = this->hasCoolingFan();
   }
 
-  output["gauge_order"] = this->gaugeOrder;
+  output["gauge_order"] = _config.gaugeOrder;
 
-  output["autoflush_mode"] = this->autoflushMode;
-  output["autoflush_salinity"] = this->autoflushSalinity;
-  output["autoflush_duration"] = this->autoflushDuration;
-  output["autoflush_volume"] = this->autoflushVolume;
-  output["autoflush_interval"] = this->autoflushInterval;
-  output["autoflush_use_high_pressure_motor"] = this->autoflushUseHighPressureMotor;
+  output["autoflush_mode"] = _config.autoflushMode;
+  output["autoflush_salinity"] = _config.autoflushSalinity;
+  output["autoflush_duration"] = _config.autoflushDuration;
+  output["autoflush_volume"] = _config.autoflushVolume;
+  output["autoflush_interval"] = _config.autoflushInterval;
+  output["autoflush_use_high_pressure_motor"] = _config.autoflushUseHighPressureMotor;
 
-  output["flush_timeout"] = this->flushTimeout;
-  output["membrane_pressure_timeout"] = this->membranePressureTimeout;
-  output["product_flowrate_timeout"] = this->productFlowrateTimeout;
-  output["product_salinity_timeout"] = this->productSalinityTimeout;
-  output["membrane_pressure_stabilization_time"] = this->membranePressureStabilizationTime;
-  output["product_flowrate_stabilization_time"] = this->productFlowrateStabilizationTime;
-  output["product_salinity_stabilization_time"] = this->productSalinityStabilizationTime;
-  output["production_runtime_timeout"] = this->productionRuntimeTimeout;
+  output["flush_timeout"] = _config.flushTimeout;
+  output["membrane_pressure_timeout"] = _config.membranePressureTimeout;
+  output["product_flowrate_timeout"] = _config.productFlowrateTimeout;
+  output["product_salinity_timeout"] = _config.productSalinityTimeout;
+  output["membrane_pressure_stabilization_time"] = _config.membranePressureStabilizationTime;
+  output["product_flowrate_stabilization_time"] = _config.productFlowrateStabilizationTime;
+  output["product_salinity_stabilization_time"] = _config.productSalinityStabilizationTime;
+  output["production_runtime_timeout"] = _config.productionRuntimeTimeout;
 
-  output["tank_capacity"] = this->tankCapacity;
-  output["temperature_units"] = this->temperatureUnits;
-  output["pressure_units"] = this->pressureUnits;
-  output["volume_units"] = this->volumeUnits;
-  output["flowrate_units"] = this->flowrateUnits;
-  output["success_melody"] = this->successMelody;
-  output["error_melody"] = this->errorMelody;
+  output["tank_capacity"] = _config.tankCapacity;
+  output["temperature_units"] = _config.temperatureUnits;
+  output["pressure_units"] = _config.pressureUnits;
+  output["volume_units"] = _config.volumeUnits;
+  output["flowrate_units"] = _config.flowrateUnits;
+  output["success_melody"] = _config.successMelody;
+  output["error_melody"] = _config.errorMelody;
 
-  output["boost_pump_control"] = this->boostPumpControl;
-  output["boost_pump_relay_id"] = this->boostPumpRelayId;
-  output["boost_pump_relay_inverted"] = this->boostPumpRelayInverted;
-  output["boost_pump_delay"] = this->boostPumpDelay;
+  output["boost_pump_control"] = _config.boostPumpControl;
+  output["boost_pump_relay_id"] = _config.boostPumpRelayId;
+  output["boost_pump_relay_inverted"] = _config.boostPumpRelayInverted;
+  output["boost_pump_delay"] = _config.boostPumpDelay;
 
-  output["high_pressure_pump_control"] = this->highPressurePumpControl;
-  output["high_pressure_relay_id"] = this->highPressureRelayId;
-  output["high_pressure_relay_inverted"] = this->highPressureRelayInverted;
-  output["high_pressure_modbus_device"] = this->highPressurePumpModbusDevice;
-  output["high_pressure_modbus_slave_id"] = this->highPressurePumpModbusSlaveId;
-  output["high_pressure_modbus_frequency"] = this->highPressurePumpModbusFrequency;
-  output["high_pressure_pump_delay"] = this->highPressurePumpDelay;
+  output["high_pressure_pump_control"] = _config.highPressurePumpControl;
+  output["high_pressure_relay_id"] = _config.highPressureRelayId;
+  output["high_pressure_relay_inverted"] = _config.highPressureRelayInverted;
+  output["high_pressure_modbus_device"] = _config.highPressurePumpModbusDevice;
+  output["high_pressure_modbus_slave_id"] = _config.highPressurePumpModbusSlaveId;
+  output["high_pressure_modbus_frequency"] = _config.highPressurePumpModbusFrequency;
+  output["high_pressure_pump_delay"] = _config.highPressurePumpDelay;
 
-  output["high_pressure_valve_control"] = this->highPressureValveControl;
-  output["membrane_pressure_target"] = this->membranePressureTarget;
-  output["high_pressure_valve_stepper_id"] = this->highPressureValveStepperId;
-  output["high_pressure_stepper_step_angle"] = this->highPressureValveStepperStepAngle;
-  output["high_pressure_stepper_gear_ratio"] = this->highPressureValveStepperGearRatio;
-  output["high_pressure_stepper_close_angle"] = this->highPressureValveStepperCloseAngle;
-  output["high_pressure_stepper_close_speed"] = this->highPressureValveStepperCloseSpeed;
-  output["high_pressure_stepper_open_angle"] = this->highPressureValveStepperOpenAngle;
-  output["high_pressure_stepper_open_speed"] = this->highPressureValveStepperOpenSpeed;
-  output["high_pressure_stepper_run_current"] = this->highPressureValveStepperRunCurrent;
-  output["high_pressure_stepper_home_current"] = this->highPressureValveStepperHomeCurrent;
-  output["high_pressure_stepper_inverted"] = this->highPressureStepperInverted;
+  output["high_pressure_valve_control"] = _config.highPressureValveControl;
+  output["membrane_pressure_target"] = _config.membranePressureTarget;
+  output["high_pressure_valve_stepper_id"] = _config.highPressureValveStepperId;
+  output["high_pressure_stepper_step_angle"] = _config.highPressureValveStepperStepAngle;
+  output["high_pressure_stepper_gear_ratio"] = _config.highPressureValveStepperGearRatio;
+  output["high_pressure_stepper_close_angle"] = _config.highPressureValveStepperCloseAngle;
+  output["high_pressure_stepper_close_speed"] = _config.highPressureValveStepperCloseSpeed;
+  output["high_pressure_stepper_open_angle"] = _config.highPressureValveStepperOpenAngle;
+  output["high_pressure_stepper_open_speed"] = _config.highPressureValveStepperOpenSpeed;
+  output["high_pressure_stepper_run_current"] = _config.highPressureValveStepperRunCurrent;
+  output["high_pressure_stepper_home_current"] = _config.highPressureValveStepperHomeCurrent;
+  output["high_pressure_stepper_inverted"] = _config.highPressureStepperInverted;
 
-  output["diverter_valve_control"] = this->diverterValveControl;
-  output["diverter_valve_servo_id"] = this->diverterValveServoId;
-  output["diverter_valve_relay_id"] = this->diverterValveRelayId;
-  output["diverter_valve_relay_inverted"] = this->diverterValveRelayInverted;
-  output["diverter_valve_open_angle"] = this->diverterValveOpenAngle;
-  output["diverter_valve_close_angle"] = this->diverterValveCloseAngle;
-  output["diverter_valve_tank_relay_id"] = this->diverterValveTankRelayId;
-  output["diverter_valve_tank_relay_inverted"] = this->diverterValveTankRelayInverted;
-  output["diverter_valve_overboard_relay_id"] = this->diverterValveOverboardRelayId;
-  output["diverter_valve_overboard_relay_inverted"] = this->diverterValveOverboardRelayInverted;
-  output["diverter_valve_relay_change_interval"] = this->diverterValveRelayChangeInterval;
+  output["diverter_valve_control"] = _config.diverterValveControl;
+  output["diverter_valve_servo_id"] = _config.diverterValveServoId;
+  output["diverter_valve_relay_id"] = _config.diverterValveRelayId;
+  output["diverter_valve_relay_inverted"] = _config.diverterValveRelayInverted;
+  output["diverter_valve_open_angle"] = _config.diverterValveOpenAngle;
+  output["diverter_valve_close_angle"] = _config.diverterValveCloseAngle;
+  output["diverter_valve_tank_relay_id"] = _config.diverterValveTankRelayId;
+  output["diverter_valve_tank_relay_inverted"] = _config.diverterValveTankRelayInverted;
+  output["diverter_valve_overboard_relay_id"] = _config.diverterValveOverboardRelayId;
+  output["diverter_valve_overboard_relay_inverted"] = _config.diverterValveOverboardRelayInverted;
+  output["diverter_valve_relay_change_interval"] = _config.diverterValveRelayChangeInterval;
 
-  output["flush_valve_control"] = this->flushValveControl;
-  output["flush_valve_relay_id"] = this->flushValveRelayId;
-  output["flush_valve_relay_inverted"] = this->flushValveRelayInverted;
-  output["flush_valve_servo_id"] = this->flushValveServoId;
-  output["flush_valve_open_angle"] = this->flushValveOpenAngle;
-  output["flush_valve_close_angle"] = this->flushValveCloseAngle;
+  output["flush_valve_control"] = _config.flushValveControl;
+  output["flush_valve_relay_id"] = _config.flushValveRelayId;
+  output["flush_valve_relay_inverted"] = _config.flushValveRelayInverted;
+  output["flush_valve_servo_id"] = _config.flushValveServoId;
+  output["flush_valve_open_angle"] = _config.flushValveOpenAngle;
+  output["flush_valve_close_angle"] = _config.flushValveCloseAngle;
 
-  output["cooling_fan_control"] = this->coolingFanControl;
-  output["cooling_fan_relay_id"] = this->coolingFanRelayId;
-  output["cooling_fan_relay_inverted"] = this->coolingFanRelayInverted;
-  output["cooling_fan_on_temperature"] = this->coolingFanOnTemperature;
-  output["cooling_fan_off_temperature"] = this->coolingFanOffTemperature;
+  output["cooling_fan_control"] = _config.coolingFanControl;
+  output["cooling_fan_relay_id"] = _config.coolingFanRelayId;
+  output["cooling_fan_relay_inverted"] = _config.coolingFanRelayInverted;
+  output["cooling_fan_on_temperature"] = _config.coolingFanOnTemperature;
+  output["cooling_fan_off_temperature"] = _config.coolingFanOffTemperature;
 
-  output["has_membrane_pressure_sensor"] = this->hasMembranePressureSensor;
-  output["membrane_pressure_sensor_min"] = this->membranePressureSensorMin;
-  output["membrane_pressure_sensor_max"] = this->membranePressureSensorMax;
+  output["has_membrane_pressure_sensor"] = _config.hasMembranePressureSensor;
+  output["membrane_pressure_sensor_min"] = _config.membranePressureSensorMin;
+  output["membrane_pressure_sensor_max"] = _config.membranePressureSensorMax;
 
-  output["has_filter_pressure_sensor"] = this->hasFilterPressureSensor;
-  output["filter_pressure_sensor_min"] = this->filterPressureSensorMin;
-  output["filter_pressure_sensor_max"] = this->filterPressureSensorMax;
+  output["has_filter_pressure_sensor"] = _config.hasFilterPressureSensor;
+  output["filter_pressure_sensor_min"] = _config.filterPressureSensorMin;
+  output["filter_pressure_sensor_max"] = _config.filterPressureSensorMax;
 
-  output["has_product_tds_sensor"] = this->hasProductTDSSensor;
-  output["product_tds_sensor_offset"] = this->productTDSSensorOffset;
+  output["has_product_tds_sensor"] = _config.hasProductTDSSensor;
+  output["product_tds_sensor_offset"] = _config.productTDSSensorOffset;
 
-  output["has_brine_tds_sensor"] = this->hasBrineTDSSensor;
-  output["brine_tds_sensor_offset"] = this->brineTDSSensorOffset;
+  output["has_brine_tds_sensor"] = _config.hasBrineTDSSensor;
+  output["brine_tds_sensor_offset"] = _config.brineTDSSensorOffset;
 
-  output["has_product_flow_sensor"] = this->hasProductFlowSensor;
-  output["product_flowmeter_ppl"] = this->productFlowmeterPPL;
+  output["has_product_flow_sensor"] = _config.hasProductFlowSensor;
+  output["product_flowmeter_ppl"] = _config.productFlowmeterPPL;
 
-  output["has_brine_flow_sensor"] = this->hasBrineFlowSensor;
-  output["brine_flowmeter_ppl"] = this->brineFlowmeterPPL;
+  output["has_brine_flow_sensor"] = _config.hasBrineFlowSensor;
+  output["brine_flowmeter_ppl"] = _config.brineFlowmeterPPL;
 
-  output["motor_temperature_sensor_type"] = this->motorTemperatureSensorType;
-  output["motor_temperature_mqtt_path"] = this->motorTemperatureMqttPath;
-  output["water_temperature_sensor_type"] = this->waterTemperatureSensorType;
-  output["water_temperature_mqtt_path"] = this->waterTemperatureMqttPath;
-  output["tank_level_sensor_type"] = this->tankLevelSensorType;
-  output["tank_level_mqtt_path"] = this->tankLevelMqttPath;
-  output["battery_level_sensor_type"] = this->batteryLevelSensorType;
-  output["battery_level_mqtt_path"] = this->batteryLevelMqttPath;
+  output["motor_temperature_sensor_type"] = _config.motorTemperatureSensorType;
+  output["motor_temperature_mqtt_path"] = _config.motorTemperatureMqttPath;
+  output["water_temperature_sensor_type"] = _config.waterTemperatureSensorType;
+  output["water_temperature_mqtt_path"] = _config.waterTemperatureMqttPath;
+  output["tank_level_sensor_type"] = _config.tankLevelSensorType;
+  output["tank_level_mqtt_path"] = _config.tankLevelMqttPath;
+  output["battery_level_sensor_type"] = _config.batteryLevelSensorType;
+  output["battery_level_mqtt_path"] = _config.batteryLevelMqttPath;
 
-  output["enable_membrane_pressure_high_check"] = this->enableMembranePressureHighCheck;
-  output["membrane_pressure_high_threshold"] = this->membranePressureHighThreshold;
-  output["membrane_pressure_high_delay"] = this->membranePressureHighDelay;
+  output["enable_membrane_pressure_high_check"] = _config.enableMembranePressureHighCheck;
+  output["membrane_pressure_high_threshold"] = _config.membranePressureHighThreshold;
+  output["membrane_pressure_high_delay"] = _config.membranePressureHighDelay;
 
-  output["enable_membrane_pressure_low_check"] = this->enableMembranePressureLowCheck;
-  output["membrane_pressure_low_threshold"] = this->membranePressureLowThreshold;
-  output["membrane_pressure_low_delay"] = this->membranePressureLowDelay;
+  output["enable_membrane_pressure_low_check"] = _config.enableMembranePressureLowCheck;
+  output["membrane_pressure_low_threshold"] = _config.membranePressureLowThreshold;
+  output["membrane_pressure_low_delay"] = _config.membranePressureLowDelay;
 
-  output["enable_filter_pressure_high_check"] = this->enableFilterPressureHighCheck;
-  output["filter_pressure_high_threshold"] = this->filterPressureHighThreshold;
-  output["filter_pressure_high_delay"] = this->filterPressureHighDelay;
+  output["enable_filter_pressure_high_check"] = _config.enableFilterPressureHighCheck;
+  output["filter_pressure_high_threshold"] = _config.filterPressureHighThreshold;
+  output["filter_pressure_high_delay"] = _config.filterPressureHighDelay;
 
-  output["enable_filter_pressure_low_check"] = this->enableFilterPressureLowCheck;
-  output["filter_pressure_low_threshold"] = this->filterPressureLowThreshold;
-  output["filter_pressure_low_delay"] = this->filterPressureLowDelay;
+  output["enable_filter_pressure_low_check"] = _config.enableFilterPressureLowCheck;
+  output["filter_pressure_low_threshold"] = _config.filterPressureLowThreshold;
+  output["filter_pressure_low_delay"] = _config.filterPressureLowDelay;
 
-  output["enable_product_flowrate_high_check"] = this->enableProductFlowrateHighCheck;
-  output["product_flowrate_high_threshold"] = this->productFlowrateHighThreshold;
-  output["product_flowrate_high_delay"] = this->productFlowrateHighDelay;
+  output["enable_product_flowrate_high_check"] = _config.enableProductFlowrateHighCheck;
+  output["product_flowrate_high_threshold"] = _config.productFlowrateHighThreshold;
+  output["product_flowrate_high_delay"] = _config.productFlowrateHighDelay;
 
-  output["enable_product_flowrate_low_check"] = this->enableProductFlowrateLowCheck;
-  output["product_flowrate_low_threshold"] = this->productFlowrateLowThreshold;
-  output["product_flowrate_low_delay"] = this->productFlowrateLowDelay;
+  output["enable_product_flowrate_low_check"] = _config.enableProductFlowrateLowCheck;
+  output["product_flowrate_low_threshold"] = _config.productFlowrateLowThreshold;
+  output["product_flowrate_low_delay"] = _config.productFlowrateLowDelay;
 
-  output["enable_run_total_flowrate_low_check"] = this->enableRunTotalFlowrateLowCheck;
-  output["run_total_flowrate_low_threshold"] = this->runTotalFlowrateLowThreshold;
-  output["run_total_flowrate_low_delay"] = this->runTotalFlowrateLowDelay;
+  output["enable_run_total_flowrate_low_check"] = _config.enableRunTotalFlowrateLowCheck;
+  output["run_total_flowrate_low_threshold"] = _config.runTotalFlowrateLowThreshold;
+  output["run_total_flowrate_low_delay"] = _config.runTotalFlowrateLowDelay;
 
-  output["enable_pickle_total_flowrate_low_check"] = this->enablePickleTotalFlowrateLowCheck;
-  output["pickle_total_flowrate_low_threshold"] = this->pickleTotalFlowrateLowThreshold;
-  output["pickle_total_flowrate_low_delay"] = this->pickleTotalFlowrateLowDelay;
+  output["enable_pickle_total_flowrate_low_check"] = _config.enablePickleTotalFlowrateLowCheck;
+  output["pickle_total_flowrate_low_threshold"] = _config.pickleTotalFlowrateLowThreshold;
+  output["pickle_total_flowrate_low_delay"] = _config.pickleTotalFlowrateLowDelay;
 
-  output["enable_diverter_valve_closed_check"] = this->enableDiverterValveClosedCheck;
-  output["diverter_valve_closed_flowrate_high_threshold"] = this->diverterValveClosedFlowrateHighThreshold;
-  output["diverter_valve_closed_delay"] = this->diverterValveClosedDelay;
+  output["enable_diverter_valve_closed_check"] = _config.enableDiverterValveClosedCheck;
+  output["diverter_valve_closed_flowrate_high_threshold"] = _config.diverterValveClosedFlowrateHighThreshold;
+  output["diverter_valve_closed_delay"] = _config.diverterValveClosedDelay;
 
-  output["enable_product_salinity_high_check"] = this->enableProductSalinityHighCheck;
-  output["product_salinity_high_threshold"] = this->productSalinityHighThreshold;
-  output["product_salinity_high_delay"] = this->productSalinityHighDelay;
+  output["enable_product_salinity_high_check"] = _config.enableProductSalinityHighCheck;
+  output["product_salinity_high_threshold"] = _config.productSalinityHighThreshold;
+  output["product_salinity_high_delay"] = _config.productSalinityHighDelay;
 
-  output["enable_motor_temperature_check"] = this->enableMotorTemperatureCheck;
-  output["motor_temperature_high_threshold"] = this->motorTemperatureHighThreshold;
-  output["motor_temperature_high_delay"] = this->motorTemperatureHighDelay;
+  output["enable_motor_temperature_check"] = _config.enableMotorTemperatureCheck;
+  output["motor_temperature_high_threshold"] = _config.motorTemperatureHighThreshold;
+  output["motor_temperature_high_delay"] = _config.motorTemperatureHighDelay;
 
-  output["enable_flush_flowrate_low_check"] = this->enableFlushFlowrateLowCheck;
-  output["flush_flowrate_low_threshold"] = this->flushFlowrateLowThreshold;
-  output["flush_flowrate_low_delay"] = this->flushFlowrateLowDelay;
+  output["enable_flush_flowrate_low_check"] = _config.enableFlushFlowrateLowCheck;
+  output["flush_flowrate_low_threshold"] = _config.flushFlowrateLowThreshold;
+  output["flush_flowrate_low_delay"] = _config.flushFlowrateLowDelay;
 
-  output["enable_flush_filter_pressure_low_check"] = this->enableFlushFilterPressureLowCheck;
-  output["flush_filter_pressure_low_threshold"] = this->flushFilterPressureLowThreshold;
-  output["flush_filter_pressure_low_delay"] = this->flushFilterPressureLowDelay;
+  output["enable_flush_filter_pressure_low_check"] = _config.enableFlushFilterPressureLowCheck;
+  output["flush_filter_pressure_low_threshold"] = _config.flushFilterPressureLowThreshold;
+  output["flush_filter_pressure_low_delay"] = _config.flushFilterPressureLowDelay;
 
-  output["enable_flush_valve_off_check"] = this->enableFlushValveOffCheck;
-  output["flush_valve_off_threshold"] = this->flushValveOffThreshold;
-  output["flush_valve_off_delay"] = this->flushValveOffDelay;
+  output["enable_flush_valve_off_check"] = _config.enableFlushValveOffCheck;
+  output["flush_valve_off_threshold"] = _config.flushValveOffThreshold;
+  output["flush_valve_off_delay"] = _config.flushValveOffDelay;
 
-  output["enable_flush_tank_level_low_check"] = this->enableFlushTankLevelLowCheck;
-  output["flush_tank_level_low_threshold"] = this->flushTankLevelLowThreshold;
-  output["flush_tank_level_low_delay"] = this->flushTankLevelLowDelay;
+  output["enable_flush_tank_level_low_check"] = _config.enableFlushTankLevelLowCheck;
+  output["flush_tank_level_low_threshold"] = _config.flushTankLevelLowThreshold;
+  output["flush_tank_level_low_delay"] = _config.flushTankLevelLowDelay;
 
-  output["enable_tank_level_full_check"] = this->enableTankLevelFullCheck;
-  output["tank_level_full_threshold"] = this->tankLevelFullThreshold;
-  output["tank_level_full_delay"] = this->tankLevelFullDelay;
+  output["enable_tank_level_full_check"] = _config.enableTankLevelFullCheck;
+  output["tank_level_full_threshold"] = _config.tankLevelFullThreshold;
+  output["tank_level_full_delay"] = _config.tankLevelFullDelay;
 
-  output["enable_battery_level_low_check"] = this->enableBatteryLevelLowCheck;
-  output["battery_level_low_threshold"] = this->batteryLevelLowThreshold;
+  output["enable_battery_level_low_check"] = _config.enableBatteryLevelLowCheck;
+  output["battery_level_low_threshold"] = _config.batteryLevelLowThreshold;
 }
 
 bool Brineomatic::validateConfigJSON(JsonVariant config, char* error, size_t err_size)
@@ -3557,195 +3559,195 @@ void Brineomatic::loadConfigJSON(JsonVariantConst config)
 
 void Brineomatic::loadUIConfigJSON(JsonVariantConst config)
 {
-  this->gaugeOrder = config["gauge_order"] | "";
+  _config.gaugeOrder = config["gauge_order"] | defaults.gaugeOrder;
 }
 
 void Brineomatic::loadGeneralConfigJSON(JsonVariantConst config)
 {
-  this->temperatureUnits = config["temperature_units"] | YB_TEMPERATURE_UNITS;
-  this->pressureUnits = config["pressure_units"] | YB_PRESSURE_UNITS;
-  this->volumeUnits = config["volume_units"] | YB_VOLUME_UNITS;
-  this->flowrateUnits = config["flowrate_units"] | YB_FLOWRATE_UNITS;
-  this->successMelody = config["success_melody"] | YB_SUCCESS_MELODY;
-  this->errorMelody = config["error_melody"] | YB_ERROR_MELODY;
+  _config.temperatureUnits = config["temperature_units"] | defaults.temperatureUnits;
+  _config.pressureUnits = config["pressure_units"] | defaults.pressureUnits;
+  _config.volumeUnits = config["volume_units"] | defaults.volumeUnits;
+  _config.flowrateUnits = config["flowrate_units"] | defaults.flowrateUnits;
+  _config.successMelody = config["success_melody"] | defaults.successMelody;
+  _config.errorMelody = config["error_melody"] | defaults.errorMelody;
 }
 
 void Brineomatic::loadHardwareConfigJSON(JsonVariantConst config)
 {
-  this->boostPumpControl = config["boost_pump_control"] | YB_BOOST_PUMP_CONTROL;
-  this->boostPumpRelayId = config["boost_pump_relay_id"] | YB_BOOST_PUMP_RELAY_ID;
-  this->boostPumpRelayInverted = config["boost_pump_relay_inverted"] | YB_BOOST_PUMP_RELAY_INVERTED;
-  this->boostPumpDelay = config["boost_pump_delay"] | YB_BOOST_PUMP_DELAY_MS;
+  _config.boostPumpControl = config["boost_pump_control"] | defaults.boostPumpControl;
+  _config.boostPumpRelayId = config["boost_pump_relay_id"] | defaults.boostPumpRelayId;
+  _config.boostPumpRelayInverted = config["boost_pump_relay_inverted"] | defaults.boostPumpRelayInverted;
+  _config.boostPumpDelay = config["boost_pump_delay"] | defaults.boostPumpDelay;
 
-  this->highPressurePumpControl = config["high_pressure_pump_control"] | YB_HIGH_PRESSURE_PUMP_CONTROL;
-  this->highPressureRelayId = config["high_pressure_relay_id"] | YB_HIGH_PRESSURE_RELAY_ID;
-  this->highPressureRelayInverted = config["high_pressure_relay_inverted"] | YB_HIGH_PRESSURE_RELAY_INVERTED;
-  this->highPressurePumpModbusDevice = config["high_pressure_modbus_device"] | YB_HIGH_PRESSURE_PUMP_MODBUS_DEVICE;
-  this->highPressurePumpModbusSlaveId = config["high_pressure_modbus_slave_id"] | YB_HIGH_PRESSURE_PUMP_MODBUS_SLAVE_ID;
-  this->highPressurePumpModbusFrequency = config["high_pressure_modbus_frequency"] | YB_HIGH_PRESSURE_PUMP_MODBUS_FREQUENCY;
-  this->highPressurePumpDelay = config["high_pressure_pump_delay"] | YB_HIGH_PRESSURE_PUMP_DELAY_MS;
+  _config.highPressurePumpControl = config["high_pressure_pump_control"] | defaults.highPressurePumpControl;
+  _config.highPressureRelayId = config["high_pressure_relay_id"] | defaults.highPressureRelayId;
+  _config.highPressureRelayInverted = config["high_pressure_relay_inverted"] | defaults.highPressureRelayInverted;
+  _config.highPressurePumpModbusDevice = config["high_pressure_modbus_device"] | defaults.highPressurePumpModbusDevice;
+  _config.highPressurePumpModbusSlaveId = config["high_pressure_modbus_slave_id"] | defaults.highPressurePumpModbusSlaveId;
+  _config.highPressurePumpModbusFrequency = config["high_pressure_modbus_frequency"] | defaults.highPressurePumpModbusFrequency;
+  _config.highPressurePumpDelay = config["high_pressure_pump_delay"] | defaults.highPressurePumpDelay;
 
-  this->highPressureValveControl = config["high_pressure_valve_control"] | YB_HIGH_PRESSURE_VALVE_CONTROL;
-  this->membranePressureTarget = config["membrane_pressure_target"] | YB_MEMBRANE_PRESSURE_TARGET;
-  this->highPressureValveStepperId = config["high_pressure_valve_stepper_id"] | YB_HIGH_PRESSURE_VALVE_STEPPER_ID;
-  this->highPressureValveStepperStepAngle = config["high_pressure_stepper_step_angle"] | YB_HIGH_PRESSURE_VALVE_STEPPER_STEP_ANGLE;
-  this->highPressureValveStepperGearRatio = config["high_pressure_stepper_gear_ratio"] | YB_HIGH_PRESSURE_VALVE_STEPPER_GEAR_RATIO;
-  this->highPressureValveStepperCloseAngle = config["high_pressure_stepper_close_angle"] | YB_HIGH_PRESSURE_VALVE_STEPPER_CLOSE_ANGLE;
-  this->highPressureValveStepperCloseSpeed = config["high_pressure_stepper_close_speed"] | YB_HIGH_PRESSURE_VALVE_STEPPER_CLOSE_SPEED;
-  this->highPressureValveStepperOpenAngle = config["high_pressure_stepper_open_angle"] | YB_HIGH_PRESSURE_VALVE_STEPPER_OPEN_ANGLE;
-  this->highPressureValveStepperOpenSpeed = config["high_pressure_stepper_open_speed"] | YB_HIGH_PRESSURE_VALVE_STEPPER_OPEN_SPEED;
-  this->highPressureValveStepperRunCurrent = config["high_pressure_stepper_run_current"] | YB_HIGH_PRESSURE_VALVE_STEPPER_RUN_CURRENT;
-  this->highPressureValveStepperHomeCurrent = config["high_pressure_stepper_home_current"] | YB_HIGH_PRESSURE_VALVE_STEPPER_HOME_CURRENT;
-  this->highPressureStepperInverted = config["high_pressure_stepper_inverted"] | YB_HIGH_PRESSURE_STEPPER_INVERTED;
+  _config.highPressureValveControl = config["high_pressure_valve_control"] | defaults.highPressureValveControl;
+  _config.membranePressureTarget = config["membrane_pressure_target"] | defaults.membranePressureTarget;
+  _config.highPressureValveStepperId = config["high_pressure_valve_stepper_id"] | defaults.highPressureValveStepperId;
+  _config.highPressureValveStepperStepAngle = config["high_pressure_stepper_step_angle"] | defaults.highPressureValveStepperStepAngle;
+  _config.highPressureValveStepperGearRatio = config["high_pressure_stepper_gear_ratio"] | defaults.highPressureValveStepperGearRatio;
+  _config.highPressureValveStepperCloseAngle = config["high_pressure_stepper_close_angle"] | defaults.highPressureValveStepperCloseAngle;
+  _config.highPressureValveStepperCloseSpeed = config["high_pressure_stepper_close_speed"] | defaults.highPressureValveStepperCloseSpeed;
+  _config.highPressureValveStepperOpenAngle = config["high_pressure_stepper_open_angle"] | defaults.highPressureValveStepperOpenAngle;
+  _config.highPressureValveStepperOpenSpeed = config["high_pressure_stepper_open_speed"] | defaults.highPressureValveStepperOpenSpeed;
+  _config.highPressureValveStepperRunCurrent = config["high_pressure_stepper_run_current"] | defaults.highPressureValveStepperRunCurrent;
+  _config.highPressureValveStepperHomeCurrent = config["high_pressure_stepper_home_current"] | defaults.highPressureValveStepperHomeCurrent;
+  _config.highPressureStepperInverted = config["high_pressure_stepper_inverted"] | defaults.highPressureStepperInverted;
 
-  this->diverterValveControl = config["diverter_valve_control"] | YB_DIVERTER_VALVE_CONTROL;
-  this->diverterValveRelayId = config["diverter_valve_relay_id"] | YB_DIVERTER_VALVE_RELAY_ID;
-  this->diverterValveRelayInverted = config["diverter_valve_relay_inverted"] | YB_DIVERTER_VALVE_RELAY_INVERTED;
-  this->diverterValveServoId = config["diverter_valve_servo_id"] | YB_DIVERTER_VALVE_SERVO_ID;
-  this->diverterValveOpenAngle = config["diverter_valve_open_angle"] | YB_DIVERTER_VALVE_OPEN_ANGLE;
-  this->diverterValveCloseAngle = config["diverter_valve_close_angle"] | YB_DIVERTER_VALVE_CLOSE_ANGLE;
-  this->diverterValveTankRelayId = config["diverter_valve_tank_relay_id"] | YB_DIVERTER_VALVE_TANK_RELAY_ID;
-  this->diverterValveTankRelayInverted = config["diverter_valve_tank_relay_inverted"] | YB_DIVERTER_VALVE_TANK_RELAY_INVERTED;
-  this->diverterValveOverboardRelayId = config["diverter_valve_overboard_relay_id"] | YB_DIVERTER_VALVE_OVERBOARD_RELAY_ID;
-  this->diverterValveOverboardRelayInverted = config["diverter_valve_overboard_relay_inverted"] | YB_DIVERTER_VALVE_OVERBOARD_RELAY_INVERTED;
-  this->diverterValveRelayChangeInterval = config["diverter_valve_relay_change_interval"] | YB_DIVERTER_VALVE_RELAY_CHANGE_INTERVAL;
+  _config.diverterValveControl = config["diverter_valve_control"] | defaults.diverterValveControl;
+  _config.diverterValveRelayId = config["diverter_valve_relay_id"] | defaults.diverterValveRelayId;
+  _config.diverterValveRelayInverted = config["diverter_valve_relay_inverted"] | defaults.diverterValveRelayInverted;
+  _config.diverterValveServoId = config["diverter_valve_servo_id"] | defaults.diverterValveServoId;
+  _config.diverterValveOpenAngle = config["diverter_valve_open_angle"] | defaults.diverterValveOpenAngle;
+  _config.diverterValveCloseAngle = config["diverter_valve_close_angle"] | defaults.diverterValveCloseAngle;
+  _config.diverterValveTankRelayId = config["diverter_valve_tank_relay_id"] | defaults.diverterValveTankRelayId;
+  _config.diverterValveTankRelayInverted = config["diverter_valve_tank_relay_inverted"] | defaults.diverterValveTankRelayInverted;
+  _config.diverterValveOverboardRelayId = config["diverter_valve_overboard_relay_id"] | defaults.diverterValveOverboardRelayId;
+  _config.diverterValveOverboardRelayInverted = config["diverter_valve_overboard_relay_inverted"] | defaults.diverterValveOverboardRelayInverted;
+  _config.diverterValveRelayChangeInterval = config["diverter_valve_relay_change_interval"] | defaults.diverterValveRelayChangeInterval;
 
-  this->flushValveControl = config["flush_valve_control"] | YB_FLUSH_VALVE_CONTROL;
-  this->flushValveRelayId = config["flush_valve_relay_id"] | YB_FLUSH_VALVE_RELAY_ID;
-  this->flushValveRelayInverted = config["flush_valve_relay_inverted"] | YB_FLUSH_VALVE_RELAY_INVERTED;
-  this->flushValveServoId = config["flush_valve_servo_id"] | YB_FLUSH_VALVE_SERVO_ID;
-  this->flushValveOpenAngle = config["flush_valve_open_angle"] | YB_FLUSH_VALVE_OPEN_ANGLE;
-  this->flushValveCloseAngle = config["flush_valve_close_angle"] | YB_FLUSH_VALVE_CLOSE_ANGLE;
+  _config.flushValveControl = config["flush_valve_control"] | defaults.flushValveControl;
+  _config.flushValveRelayId = config["flush_valve_relay_id"] | defaults.flushValveRelayId;
+  _config.flushValveRelayInverted = config["flush_valve_relay_inverted"] | defaults.flushValveRelayInverted;
+  _config.flushValveServoId = config["flush_valve_servo_id"] | defaults.flushValveServoId;
+  _config.flushValveOpenAngle = config["flush_valve_open_angle"] | defaults.flushValveOpenAngle;
+  _config.flushValveCloseAngle = config["flush_valve_close_angle"] | defaults.flushValveCloseAngle;
 
-  this->autoflushMode = config["autoflush_mode"] | YB_AUTOFLUSH_MODE;
-  this->autoflushSalinity = config["autoflush_salinity"] | YB_AUTOFLUSH_SALINITY;
-  this->autoflushDuration = config["autoflush_duration"] | YB_AUTOFLUSH_DURATION;
-  this->autoflushVolume = config["autoflush_volume"] | YB_AUTOFLUSH_VOLUME;
-  this->autoflushInterval = config["autoflush_interval"] | YB_AUTOFLUSH_INTERVAL;
-  this->autoflushUseHighPressureMotor = config["autoflush_use_high_pressure_motor"] | YB_AUTOFLUSH_USE_HIGH_PRESSURE_MOTOR;
+  _config.autoflushMode = config["autoflush_mode"] | defaults.autoflushMode;
+  _config.autoflushSalinity = config["autoflush_salinity"] | defaults.autoflushSalinity;
+  _config.autoflushDuration = config["autoflush_duration"] | defaults.autoflushDuration;
+  _config.autoflushVolume = config["autoflush_volume"] | defaults.autoflushVolume;
+  _config.autoflushInterval = config["autoflush_interval"] | defaults.autoflushInterval;
+  _config.autoflushUseHighPressureMotor = config["autoflush_use_high_pressure_motor"] | defaults.autoflushUseHighPressureMotor;
 
-  this->coolingFanControl = config["cooling_fan_control"] | YB_COOLING_FAN_CONTROL;
-  this->coolingFanRelayId = config["cooling_fan_relay_id"] | YB_COOLING_FAN_RELAY_ID;
-  this->coolingFanRelayInverted = config["cooling_fan_relay_inverted"] | YB_COOLING_FAN_RELAY_INVERTED;
-  this->coolingFanOnTemperature = config["cooling_fan_on_temperature"] | YB_COOLING_FAN_ON_TEMPERATURE;
-  this->coolingFanOffTemperature = config["cooling_fan_off_temperature"] | YB_COOLING_FAN_OFF_TEMPERATURE;
+  _config.coolingFanControl = config["cooling_fan_control"] | defaults.coolingFanControl;
+  _config.coolingFanRelayId = config["cooling_fan_relay_id"] | defaults.coolingFanRelayId;
+  _config.coolingFanRelayInverted = config["cooling_fan_relay_inverted"] | defaults.coolingFanRelayInverted;
+  _config.coolingFanOnTemperature = config["cooling_fan_on_temperature"] | defaults.coolingFanOnTemperature;
+  _config.coolingFanOffTemperature = config["cooling_fan_off_temperature"] | defaults.coolingFanOffTemperature;
 
-  this->hasMembranePressureSensor = config["has_membrane_pressure_sensor"] | YB_HAS_MEMBRANE_PRESSURE_SENSOR;
-  this->membranePressureSensorMin = config["membrane_pressure_sensor_min"] | YB_MEMBRANE_PRESSURE_SENSOR_MIN;
-  this->membranePressureSensorMax = config["membrane_pressure_sensor_max"] | YB_MEMBRANE_PRESSURE_SENSOR_MAX;
+  _config.hasMembranePressureSensor = config["has_membrane_pressure_sensor"] | defaults.hasMembranePressureSensor;
+  _config.membranePressureSensorMin = config["membrane_pressure_sensor_min"] | defaults.membranePressureSensorMin;
+  _config.membranePressureSensorMax = config["membrane_pressure_sensor_max"] | defaults.membranePressureSensorMax;
 
-  this->hasFilterPressureSensor = config["has_filter_pressure_sensor"] | YB_HAS_FILTER_PRESSURE_SENSOR;
-  this->filterPressureSensorMin = config["filter_pressure_sensor_min"] | YB_FILTER_PRESSURE_SENSOR_MIN;
-  this->filterPressureSensorMax = config["filter_pressure_sensor_max"] | YB_FILTER_PRESSURE_SENSOR_MAX;
+  _config.hasFilterPressureSensor = config["has_filter_pressure_sensor"] | defaults.hasFilterPressureSensor;
+  _config.filterPressureSensorMin = config["filter_pressure_sensor_min"] | defaults.filterPressureSensorMin;
+  _config.filterPressureSensorMax = config["filter_pressure_sensor_max"] | defaults.filterPressureSensorMax;
 
-  this->hasProductTDSSensor = config["has_product_tds_sensor"] | YB_HAS_PRODUCT_TDS_SENSOR;
-  this->productTDSSensorOffset = config["product_tds_sensor_offset"] | YB_PRODUCT_TDS_SENSOR_OFFSET;
+  _config.hasProductTDSSensor = config["has_product_tds_sensor"] | defaults.hasProductTDSSensor;
+  _config.productTDSSensorOffset = config["product_tds_sensor_offset"] | defaults.productTDSSensorOffset;
 
-  this->hasBrineTDSSensor = config["has_brine_tds_sensor"] | YB_HAS_BRINE_TDS_SENSOR;
-  this->brineTDSSensorOffset = config["brine_tds_sensor_offset"] | YB_BRINE_TDS_SENSOR_OFFSET;
+  _config.hasBrineTDSSensor = config["has_brine_tds_sensor"] | defaults.hasBrineTDSSensor;
+  _config.brineTDSSensorOffset = config["brine_tds_sensor_offset"] | defaults.brineTDSSensorOffset;
 
-  this->hasProductFlowSensor = config["has_product_flow_sensor"] | YB_HAS_PRODUCT_FLOW_SENSOR;
-  this->productFlowmeterPPL = config["product_flowmeter_ppl"] | YB_PRODUCT_FLOWMETER_PPL;
+  _config.hasProductFlowSensor = config["has_product_flow_sensor"] | defaults.hasProductFlowSensor;
+  _config.productFlowmeterPPL = config["product_flowmeter_ppl"] | defaults.productFlowmeterPPL;
 
-  this->hasBrineFlowSensor = config["has_brine_flow_sensor"] | YB_HAS_BRINE_FLOW_SENSOR;
-  this->brineFlowmeterPPL = config["brine_flowmeter_ppl"] | YB_BRINE_FLOWMETER_PPL;
+  _config.hasBrineFlowSensor = config["has_brine_flow_sensor"] | defaults.hasBrineFlowSensor;
+  _config.brineFlowmeterPPL = config["brine_flowmeter_ppl"] | defaults.brineFlowmeterPPL;
 
-  this->motorTemperatureSensorType = config["motor_temperature_sensor_type"] | YB_MOTOR_TEMPERATURE_SENSOR_TYPE;
-  this->motorTemperatureMqttPath = config["motor_temperature_mqtt_path"] | YB_MOTOR_TEMPERATURE_MQTT_PATH;
-  this->waterTemperatureSensorType = config["water_temperature_sensor_type"] | YB_WATER_TEMPERATURE_SENSOR_TYPE;
-  this->waterTemperatureMqttPath = config["water_temperature_mqtt_path"] | YB_WATER_TEMPERATURE_MQTT_PATH;
+  _config.motorTemperatureSensorType = config["motor_temperature_sensor_type"] | defaults.motorTemperatureSensorType;
+  _config.motorTemperatureMqttPath = config["motor_temperature_mqtt_path"] | defaults.motorTemperatureMqttPath;
+  _config.waterTemperatureSensorType = config["water_temperature_sensor_type"] | defaults.waterTemperatureSensorType;
+  _config.waterTemperatureMqttPath = config["water_temperature_mqtt_path"] | defaults.waterTemperatureMqttPath;
 
-  this->tankLevelSensorType = config["tank_level_sensor_type"] | YB_TANK_LEVEL_SENSOR_TYPE;
-  this->tankLevelMqttPath = config["tank_level_mqtt_path"] | YB_TANK_LEVEL_MQTT_PATH;
-  this->tankCapacity = config["tank_capacity"] | YB_TANK_CAPACITY;
+  _config.tankLevelSensorType = config["tank_level_sensor_type"] | defaults.tankLevelSensorType;
+  _config.tankLevelMqttPath = config["tank_level_mqtt_path"] | defaults.tankLevelMqttPath;
+  _config.tankCapacity = config["tank_capacity"] | defaults.tankCapacity;
 
-  this->batteryLevelSensorType = config["battery_level_sensor_type"] | YB_BATTERY_LEVEL_SENSOR_TYPE;
-  this->batteryLevelMqttPath = config["battery_level_mqtt_path"] | YB_BATTERY_LEVEL_MQTT_PATH;
+  _config.batteryLevelSensorType = config["battery_level_sensor_type"] | defaults.batteryLevelSensorType;
+  _config.batteryLevelMqttPath = config["battery_level_mqtt_path"] | defaults.batteryLevelMqttPath;
 
   // smart backup of the old boolean style
-  if (this->motorTemperatureSensorType.equals("NONE") && config["has_motor_temperature_sensor"])
-    this->motorTemperatureSensorType = "DS18B20";
-  if (this->waterTemperatureSensorType.equals("NONE") && config["has_water_temperature_sensor"])
-    this->waterTemperatureSensorType = "DS18B20";
+  if (_config.motorTemperatureSensorType.equals("NONE") && config["has_motor_temperature_sensor"])
+    _config.motorTemperatureSensorType = "DS18B20";
+  if (_config.waterTemperatureSensorType.equals("NONE") && config["has_water_temperature_sensor"])
+    _config.waterTemperatureSensorType = "DS18B20";
 }
 
 void Brineomatic::loadSafeguardsConfigJSON(JsonVariantConst config)
 {
-  this->flushTimeout = config["flush_timeout"] | YB_FLUSH_TIMEOUT;
-  this->membranePressureTimeout = config["membrane_pressure_timeout"] | YB_MEMBRANE_PRESSURE_TIMEOUT;
-  this->productFlowrateTimeout = config["product_flowrate_timeout"] | YB_PRODUCT_FLOWRATE_TIMEOUT;
-  this->productSalinityTimeout = config["product_salinity_timeout"] | YB_PRODUCT_SALINITY_TIMEOUT;
-  this->membranePressureStabilizationTime = config["membrane_pressure_stabilization_time"] | YB_MEMBRANE_PRESSURE_STABILIZATION_TIME;
-  this->productFlowrateStabilizationTime = config["product_flowrate_stabilization_time"] | YB_PRODUCT_FLOWRATE_STABILIZATION_TIME;
-  this->productSalinityStabilizationTime = config["product_salinity_stabilization_time"] | YB_PRODUCT_SALINITY_STABILIZATION_TIME;
-  this->productionRuntimeTimeout = config["production_runtime_timeout"] | YB_PRODUCTION_RUNTIME_TIMEOUT;
+  _config.flushTimeout = config["flush_timeout"] | defaults.flushTimeout;
+  _config.membranePressureTimeout = config["membrane_pressure_timeout"] | defaults.membranePressureTimeout;
+  _config.productFlowrateTimeout = config["product_flowrate_timeout"] | defaults.productFlowrateTimeout;
+  _config.productSalinityTimeout = config["product_salinity_timeout"] | defaults.productSalinityTimeout;
+  _config.membranePressureStabilizationTime = config["membrane_pressure_stabilization_time"] | defaults.membranePressureStabilizationTime;
+  _config.productFlowrateStabilizationTime = config["product_flowrate_stabilization_time"] | defaults.productFlowrateStabilizationTime;
+  _config.productSalinityStabilizationTime = config["product_salinity_stabilization_time"] | defaults.productSalinityStabilizationTime;
+  _config.productionRuntimeTimeout = config["production_runtime_timeout"] | defaults.productionRuntimeTimeout;
 
-  this->enableMembranePressureHighCheck = config["enable_membrane_pressure_high_check"] | YB_ENABLE_MEMBRANE_PRESSURE_HIGH_CHECK;
-  this->membranePressureHighThreshold = config["membrane_pressure_high_threshold"] | YB_MEMBRANE_PRESSURE_HIGH_THRESHOLD;
-  this->membranePressureHighDelay = config["membrane_pressure_high_delay"] | YB_MEMBRANE_PRESSURE_HIGH_DELAY;
+  _config.enableMembranePressureHighCheck = config["enable_membrane_pressure_high_check"] | defaults.enableMembranePressureHighCheck;
+  _config.membranePressureHighThreshold = config["membrane_pressure_high_threshold"] | defaults.membranePressureHighThreshold;
+  _config.membranePressureHighDelay = config["membrane_pressure_high_delay"] | defaults.membranePressureHighDelay;
 
-  this->enableMembranePressureLowCheck = config["enable_membrane_pressure_low_check"] | YB_ENABLE_MEMBRANE_PRESSURE_LOW_CHECK;
-  this->membranePressureLowThreshold = config["membrane_pressure_low_threshold"] | YB_MEMBRANE_PRESSURE_LOW_THRESHOLD;
-  this->membranePressureLowDelay = config["membrane_pressure_low_delay"] | YB_MEMBRANE_PRESSURE_LOW_DELAY;
+  _config.enableMembranePressureLowCheck = config["enable_membrane_pressure_low_check"] | defaults.enableMembranePressureLowCheck;
+  _config.membranePressureLowThreshold = config["membrane_pressure_low_threshold"] | defaults.membranePressureLowThreshold;
+  _config.membranePressureLowDelay = config["membrane_pressure_low_delay"] | defaults.membranePressureLowDelay;
 
-  this->enableFilterPressureHighCheck = config["enable_filter_pressure_high_check"] | YB_ENABLE_FILTER_PRESSURE_HIGH_CHECK;
-  this->filterPressureHighThreshold = config["filter_pressure_high_threshold"] | YB_FILTER_PRESSURE_HIGH_THRESHOLD;
-  this->filterPressureHighDelay = config["filter_pressure_high_delay"] | YB_FILTER_PRESSURE_HIGH_DELAY;
+  _config.enableFilterPressureHighCheck = config["enable_filter_pressure_high_check"] | defaults.enableFilterPressureHighCheck;
+  _config.filterPressureHighThreshold = config["filter_pressure_high_threshold"] | defaults.filterPressureHighThreshold;
+  _config.filterPressureHighDelay = config["filter_pressure_high_delay"] | defaults.filterPressureHighDelay;
 
-  this->enableFilterPressureLowCheck = config["enable_filter_pressure_low_check"] | YB_ENABLE_FILTER_PRESSURE_LOW_CHECK;
-  this->filterPressureLowThreshold = config["filter_pressure_low_threshold"] | YB_FILTER_PRESSURE_LOW_THRESHOLD;
-  this->filterPressureLowDelay = config["filter_pressure_low_delay"] | YB_FILTER_PRESSURE_LOW_DELAY;
+  _config.enableFilterPressureLowCheck = config["enable_filter_pressure_low_check"] | defaults.enableFilterPressureLowCheck;
+  _config.filterPressureLowThreshold = config["filter_pressure_low_threshold"] | defaults.filterPressureLowThreshold;
+  _config.filterPressureLowDelay = config["filter_pressure_low_delay"] | defaults.filterPressureLowDelay;
 
-  this->enableProductFlowrateHighCheck = config["enable_product_flowrate_high_check"] | YB_ENABLE_PRODUCT_FLOWRATE_HIGH_CHECK;
-  this->productFlowrateHighThreshold = config["product_flowrate_high_threshold"] | YB_PRODUCT_FLOWRATE_HIGH_THRESHOLD;
-  this->productFlowrateHighDelay = config["product_flowrate_high_delay"] | YB_PRODUCT_FLOWRATE_HIGH_DELAY;
+  _config.enableProductFlowrateHighCheck = config["enable_product_flowrate_high_check"] | defaults.enableProductFlowrateHighCheck;
+  _config.productFlowrateHighThreshold = config["product_flowrate_high_threshold"] | defaults.productFlowrateHighThreshold;
+  _config.productFlowrateHighDelay = config["product_flowrate_high_delay"] | defaults.productFlowrateHighDelay;
 
-  this->enableProductFlowrateLowCheck = config["enable_product_flowrate_low_check"] | YB_ENABLE_PRODUCT_FLOWRATE_LOW_CHECK;
-  this->productFlowrateLowThreshold = config["product_flowrate_low_threshold"] | YB_PRODUCT_FLOWRATE_LOW_THRESHOLD;
-  this->productFlowrateLowDelay = config["product_flowrate_low_delay"] | YB_PRODUCT_FLOWRATE_LOW_DELAY;
+  _config.enableProductFlowrateLowCheck = config["enable_product_flowrate_low_check"] | defaults.enableProductFlowrateLowCheck;
+  _config.productFlowrateLowThreshold = config["product_flowrate_low_threshold"] | defaults.productFlowrateLowThreshold;
+  _config.productFlowrateLowDelay = config["product_flowrate_low_delay"] | defaults.productFlowrateLowDelay;
 
-  this->enableRunTotalFlowrateLowCheck = config["enable_run_total_flowrate_low_check"] | YB_ENABLE_RUN_TOTAL_FLOWRATE_LOW_CHECK;
-  this->runTotalFlowrateLowThreshold = config["run_total_flowrate_low_threshold"] | YB_RUN_TOTAL_FLOWRATE_LOW_THRESHOLD;
-  this->runTotalFlowrateLowDelay = config["run_total_flowrate_low_delay"] | YB_RUN_TOTAL_FLOWRATE_LOW_DELAY;
+  _config.enableRunTotalFlowrateLowCheck = config["enable_run_total_flowrate_low_check"] | defaults.enableRunTotalFlowrateLowCheck;
+  _config.runTotalFlowrateLowThreshold = config["run_total_flowrate_low_threshold"] | defaults.runTotalFlowrateLowThreshold;
+  _config.runTotalFlowrateLowDelay = config["run_total_flowrate_low_delay"] | defaults.runTotalFlowrateLowDelay;
 
-  this->enablePickleTotalFlowrateLowCheck = config["enable_pickle_total_flowrate_low_check"] | YB_ENABLE_PICKLE_TOTAL_FLOWRATE_LOW_CHECK;
-  this->pickleTotalFlowrateLowThreshold = config["pickle_total_flowrate_low_threshold"] | YB_PICKLE_TOTAL_FLOWRATE_LOW_THRESHOLD;
-  this->pickleTotalFlowrateLowDelay = config["pickle_total_flowrate_low_delay"] | YB_PICKLE_TOTAL_FLOWRATE_LOW_DELAY;
+  _config.enablePickleTotalFlowrateLowCheck = config["enable_pickle_total_flowrate_low_check"] | defaults.enablePickleTotalFlowrateLowCheck;
+  _config.pickleTotalFlowrateLowThreshold = config["pickle_total_flowrate_low_threshold"] | defaults.pickleTotalFlowrateLowThreshold;
+  _config.pickleTotalFlowrateLowDelay = config["pickle_total_flowrate_low_delay"] | defaults.pickleTotalFlowrateLowDelay;
 
-  this->enableDiverterValveClosedCheck = config["enable_diverter_valve_closed_check"] | YB_ENABLE_DIVERTER_VALVE_CLOSED_CHECK;
-  this->diverterValveClosedFlowrateHighThreshold = config["diverter_valve_closed_flowrate_high_threshold"] | YB_DIVERTER_VALVE_CLOSED_FLOWRATE_HIGH_THRESHOLD;
-  this->diverterValveClosedDelay = config["diverter_valve_closed_delay"] | YB_DIVERTER_VALVE_CLOSED_DELAY;
+  _config.enableDiverterValveClosedCheck = config["enable_diverter_valve_closed_check"] | defaults.enableDiverterValveClosedCheck;
+  _config.diverterValveClosedFlowrateHighThreshold = config["diverter_valve_closed_flowrate_high_threshold"] | defaults.diverterValveClosedFlowrateHighThreshold;
+  _config.diverterValveClosedDelay = config["diverter_valve_closed_delay"] | defaults.diverterValveClosedDelay;
 
-  this->enableProductSalinityHighCheck = config["enable_product_salinity_high_check"] | YB_ENABLE_PRODUCT_SALINITY_HIGH_CHECK;
-  this->productSalinityHighThreshold = config["product_salinity_high_threshold"] | YB_PRODUCT_SALINITY_HIGH_THRESHOLD;
-  this->productSalinityHighDelay = config["product_salinity_high_delay"] | YB_PRODUCT_SALINITY_HIGH_DELAY;
+  _config.enableProductSalinityHighCheck = config["enable_product_salinity_high_check"] | defaults.enableProductSalinityHighCheck;
+  _config.productSalinityHighThreshold = config["product_salinity_high_threshold"] | defaults.productSalinityHighThreshold;
+  _config.productSalinityHighDelay = config["product_salinity_high_delay"] | defaults.productSalinityHighDelay;
 
-  this->enableMotorTemperatureCheck = config["enable_motor_temperature_check"] | YB_ENABLE_MOTOR_TEMPERATURE_CHECK;
-  this->motorTemperatureHighThreshold = config["motor_temperature_high_threshold"] | YB_MOTOR_TEMPERATURE_HIGH_THRESHOLD;
-  this->motorTemperatureHighDelay = config["motor_temperature_high_delay"] | YB_MOTOR_TEMPERATURE_HIGH_DELAY;
+  _config.enableMotorTemperatureCheck = config["enable_motor_temperature_check"] | defaults.enableMotorTemperatureCheck;
+  _config.motorTemperatureHighThreshold = config["motor_temperature_high_threshold"] | defaults.motorTemperatureHighThreshold;
+  _config.motorTemperatureHighDelay = config["motor_temperature_high_delay"] | defaults.motorTemperatureHighDelay;
 
-  this->enableFlushFlowrateLowCheck = config["enable_flush_flowrate_low_check"] | YB_ENABLE_FLUSH_FLOWRATE_LOW_CHECK;
-  this->flushFlowrateLowThreshold = config["flush_flowrate_low_threshold"] | YB_FLUSH_FLOWRATE_LOW_THRESHOLD;
-  this->flushFlowrateLowDelay = config["flush_flowrate_low_delay"] | YB_FLUSH_FLOWRATE_LOW_DELAY;
+  _config.enableFlushFlowrateLowCheck = config["enable_flush_flowrate_low_check"] | defaults.enableFlushFlowrateLowCheck;
+  _config.flushFlowrateLowThreshold = config["flush_flowrate_low_threshold"] | defaults.flushFlowrateLowThreshold;
+  _config.flushFlowrateLowDelay = config["flush_flowrate_low_delay"] | defaults.flushFlowrateLowDelay;
 
-  this->enableFlushFilterPressureLowCheck = config["enable_flush_filter_pressure_low_check"] | YB_ENABLE_FLUSH_FILTER_PRESSURE_LOW_CHECK;
-  this->flushFilterPressureLowThreshold = config["flush_filter_pressure_low_threshold"] | YB_FLUSH_FILTER_PRESSURE_LOW_THRESHOLD;
-  this->flushFilterPressureLowDelay = config["flush_filter_pressure_low_delay"] | YB_FLUSH_FILTER_PRESSURE_LOW_DELAY;
+  _config.enableFlushFilterPressureLowCheck = config["enable_flush_filter_pressure_low_check"] | defaults.enableFlushFilterPressureLowCheck;
+  _config.flushFilterPressureLowThreshold = config["flush_filter_pressure_low_threshold"] | defaults.flushFilterPressureLowThreshold;
+  _config.flushFilterPressureLowDelay = config["flush_filter_pressure_low_delay"] | defaults.flushFilterPressureLowDelay;
 
-  this->enableFlushValveOffCheck = config["enable_flush_valve_off_check"] | YB_ENABLE_FLUSH_VALVE_OFF_CHECK;
-  this->flushValveOffThreshold = config["flush_valve_off_threshold"] | YB_FLUSH_VALVE_OFF_THRESHOLD;
-  this->flushValveOffDelay = config["flush_valve_off_delay"] | YB_FLUSH_VALVE_OFF_DELAY;
+  _config.enableFlushValveOffCheck = config["enable_flush_valve_off_check"] | defaults.enableFlushValveOffCheck;
+  _config.flushValveOffThreshold = config["flush_valve_off_threshold"] | defaults.flushValveOffThreshold;
+  _config.flushValveOffDelay = config["flush_valve_off_delay"] | defaults.flushValveOffDelay;
 
-  this->enableFlushTankLevelLowCheck = config["enable_flush_tank_level_low_check"] | YB_ENABLE_FLUSH_TANK_LEVEL_LOW_CHECK;
-  this->flushTankLevelLowThreshold = config["flush_tank_level_low_threshold"] | YB_FLUSH_TANK_LEVEL_LOW_THRESHOLD;
-  this->flushTankLevelLowDelay = config["flush_tank_level_low_delay"] | YB_FLUSH_TANK_LEVEL_LOW_DELAY;
+  _config.enableFlushTankLevelLowCheck = config["enable_flush_tank_level_low_check"] | defaults.enableFlushTankLevelLowCheck;
+  _config.flushTankLevelLowThreshold = config["flush_tank_level_low_threshold"] | defaults.flushTankLevelLowThreshold;
+  _config.flushTankLevelLowDelay = config["flush_tank_level_low_delay"] | defaults.flushTankLevelLowDelay;
 
-  this->enableTankLevelFullCheck = config["enable_tank_level_full_check"] | YB_ENABLE_TANK_LEVEL_FULL_CHECK;
-  this->tankLevelFullThreshold = config["tank_level_full_threshold"] | YB_TANK_LEVEL_FULL_THRESHOLD;
-  this->tankLevelFullDelay = config["tank_level_full_delay"] | YB_TANK_LEVEL_FULL_DELAY;
+  _config.enableTankLevelFullCheck = config["enable_tank_level_full_check"] | defaults.enableTankLevelFullCheck;
+  _config.tankLevelFullThreshold = config["tank_level_full_threshold"] | defaults.tankLevelFullThreshold;
+  _config.tankLevelFullDelay = config["tank_level_full_delay"] | defaults.tankLevelFullDelay;
 
-  this->enableBatteryLevelLowCheck = config["enable_battery_level_low_check"] | YB_ENABLE_BATTERY_LEVEL_LOW_CHECK;
-  this->batteryLevelLowThreshold = config["battery_level_low_threshold"] | YB_BATTERY_LEVEL_LOW_THRESHOLD;
+  _config.enableBatteryLevelLowCheck = config["enable_battery_level_low_check"] | defaults.enableBatteryLevelLowCheck;
+  _config.batteryLevelLowThreshold = config["battery_level_low_threshold"] | defaults.batteryLevelLowThreshold;
 }
 
 void Brineomatic::updateMQTT()
