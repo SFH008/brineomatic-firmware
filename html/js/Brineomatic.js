@@ -5958,6 +5958,38 @@
     $('body').append(html);
   };
 
+  // Resolve the display unit and a (storage -> display) conversion for a stats sensor key.
+  // Returns { unit, convert } where convert is null when no conversion is needed.
+  Brineomatic.prototype.getStatConversion = function (key) {
+    var bom = YB.bom;
+    var cfg = YB.config.brineomatic;
+    switch (key) {
+      case 'water_temperature':
+      case 'motor_temperature':
+        return {
+          unit: bom.getShortTemperatureUnits(cfg.temperature_units),
+          convert: (v) => bom.convertTemperature(v, 'C', cfg.temperature_units),
+        };
+      case 'product_flowrate':
+      case 'brine_flowrate':
+        return {
+          unit: bom.getShortFlowrateUnits(cfg.flowrate_units),
+          convert: (v) => bom.convertFlowrate(v, 'lph', cfg.flowrate_units),
+        };
+      case 'filter_pressure':
+      case 'membrane_pressure':
+        return {
+          unit: bom.getShortPressureUnits(cfg.pressure_units),
+          convert: (v) => bom.convertPressure(v, 'Bar', cfg.pressure_units),
+        };
+      case 'product_salinity':
+      case 'brine_salinity':
+        return { unit: 'PPM', convert: null };
+      default:
+        return { unit: null, convert: null };
+    }
+  };
+
   // Build a sensor-per-row table for a stats object: { sensor_key: {start,end,min,max,avg,stddev|std} }
   Brineomatic.prototype.buildStatsTableHtml = function (statsData) {
     const keys = statsData ? Object.keys(statsData) : [];
@@ -5966,15 +5998,28 @@
 
     var rows = keys.map((key) => {
       var s = statsData[key];
+      var conv = this.getStatConversion(key);
+      var label = YB.Util.humanizeText(key);
+      if (conv.unit)
+        label += ` (${conv.unit})`;
+
+      // Convert each stat to display units. Std dev is a spread, so only the
+      // conversion's scale applies (drop the offset for e.g. C -> F).
+      var fmt = (v, isStdDev) => {
+        if (conv.convert && v != null)
+          v = isStdDev ? conv.convert(v) - conv.convert(0) : conv.convert(v);
+        return this.formatReadable(v);
+      };
+
       return `
         <tr>
-          <th scope="row">${YB.Util.humanizeText(key)}</th>
-          <td class="text-end">${this.formatReadable(s.start)}</td>
-          <td class="text-end">${this.formatReadable(s.end)}</td>
-          <td class="text-end">${this.formatReadable(s.min)}</td>
-          <td class="text-end">${this.formatReadable(s.max)}</td>
-          <td class="text-end">${this.formatReadable(s.avg)}</td>
-          <td class="text-end">${this.formatReadable(s.stddev)}</td>
+          <th scope="row">${label}</th>
+          <td class="text-end">${fmt(s.start)}</td>
+          <td class="text-end">${fmt(s.end)}</td>
+          <td class="text-end">${fmt(s.min)}</td>
+          <td class="text-end">${fmt(s.max)}</td>
+          <td class="text-end">${fmt(s.avg)}</td>
+          <td class="text-end">${fmt(s.stddev, true)}</td>
         </tr>`;
     }).join('');
 
