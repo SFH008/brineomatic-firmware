@@ -254,7 +254,12 @@ void BrineomaticController::generateRunStatsJSON(JsonVariant output)
       s["min"] = st.getMinimum();
       s["max"] = st.getMaximum();
       s["avg"] = st.getAverage();
+      s["std"] = st.getStdDev();
     }
+
+    // drop the cycle entry entirely if no sensors had samples
+    if (cycleObj.size() == 0)
+      stats.remove(cycle.first.c_str());
   }
 };
 

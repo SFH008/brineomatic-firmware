@@ -69,3 +69,8 @@ float SensorStatistics::getAverage()
 {
   return _stats.count() ? _stats.average() : NAN;
 }
+
+float SensorStatistics::getStdDev()
+{
+  return _stats.count() ? _stats.pop_stdev() : NAN;
+}

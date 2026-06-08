@@ -32,9 +32,10 @@ class SensorStatistics
     float getMinimum();
     float getMaximum();
     float getAverage();
+    float getStdDev();
 
   private:
-    statistic::Statistic<float, uint32_t, false> _stats;
+    statistic::Statistic<float, uint32_t, true> _stats;
     bool _active = false;
     float _start = NAN;
     float _end = NAN;
