@@ -236,6 +236,28 @@ void BrineomaticController::generateUpdateHook(JsonVariant output)
   }
 };
 
+void BrineomaticController::generateRunStatsJSON(JsonVariant output)
+{
+  JsonObject stats = output["run_stats"].to<JsonObject>();
+
+  // walk the table as cycle -> (sensor -> stats); skip sensors with no samples
+  for (auto& cycle : wm.stats) {
+    JsonObject cycleObj = stats[cycle.first.c_str()].to<JsonObject>();
+    for (auto& sensor : cycle.second) {
+      SensorStatistics& st = sensor.second;
+      if (st.count() == 0)
+        continue;
+
+      JsonObject s = cycleObj[sensor.first.c_str()].to<JsonObject>();
+      s["start"] = st.getStart();
+      s["end"] = st.getEnd();
+      s["min"] = st.getMinimum();
+      s["max"] = st.getMaximum();
+      s["avg"] = st.getAverage();
+    }
+  }
+};
+
 void BrineomaticController::mqttUpdateHook(MQTTController* mqtt)
 {
   JsonDocument output;

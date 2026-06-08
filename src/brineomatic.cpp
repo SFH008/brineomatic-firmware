@@ -88,6 +88,12 @@ void Brineomatic::init()
   currentMembranePressure = 0.0;
   currentMembranePressureTarget = -1;
 
+  // declare which sensors each cycle tracks (fixed at compile time; no heap)
+  stats.defineCycle("run", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
+  stats.defineCycle("flush", {"product_flowrate", "filter_pressure", "water_temperature"});
+  stats.defineCycle("pickle", {"product_flowrate", "membrane_pressure"});
+  stats.defineCycle("depickle", {"product_flowrate", "membrane_pressure"});
+
   currentStatus = Status::STARTUP;
   runResult = Result::STARTUP;
   flushResult = Result::STARTUP;
@@ -849,7 +855,7 @@ float Brineomatic::getFilterPressure()
 void Brineomatic::setFilterPressure(float pressure)
 {
   currentFilterPressure = pressure;
-  filterPressureStats.add(pressure);
+  stats.add("filter_pressure", pressure);
 }
 
 float Brineomatic::getFilterPressureMinimum()
@@ -865,7 +871,7 @@ float Brineomatic::getMembranePressure()
 void Brineomatic::setMembranePressure(float pressure)
 {
   currentMembranePressure = pressure;
-  membranePressureStats.add(pressure);
+  stats.add("membrane_pressure", pressure);
 }
 
 float Brineomatic::getMembranePressureMinimum()
@@ -881,7 +887,7 @@ float Brineomatic::getProductFlowrate()
 void Brineomatic::setProductFlowrate(float flowrate)
 {
   currentProductFlowrate = flowrate;
-  productFlowrateStats.add(flowrate);
+  stats.add("product_flowrate", flowrate);
 }
 
 float Brineomatic::getBrineFlowrate()
@@ -892,7 +898,7 @@ float Brineomatic::getBrineFlowrate()
 void Brineomatic::setBrineFlowrate(float flowrate)
 {
   currentBrineFlowrate = flowrate;
-  brineFlowrateStats.add(flowrate);
+  stats.add("brine_flowrate", flowrate);
 }
 
 float Brineomatic::getProductFlowrateMinimum()
@@ -941,7 +947,7 @@ float Brineomatic::getWaterTemperature()
 void Brineomatic::setWaterTemperature(float temp)
 {
   currentWaterTemperature = temp;
-  waterTemperatureStats.add(temp);
+  stats.add("water_temperature", temp);
 }
 
 void Brineomatic::setTankLevel(float level)
@@ -957,7 +963,7 @@ void Brineomatic::setBatteryLevel(float level)
 void Brineomatic::setMotorTemperature(float temp)
 {
   currentMotorTemperature = temp;
-  motorTemperatureStats.add(temp);
+  stats.add("motor_temperature", temp);
 }
 
 float Brineomatic::getMotorTemperature()
@@ -978,7 +984,7 @@ float Brineomatic::getProductSalinity()
 void Brineomatic::setProductSalinity(float salinity)
 {
   currentProductSalinity = salinity;
-  productSalinityStats.add(salinity);
+  stats.add("product_salinity", salinity);
 }
 
 float Brineomatic::getBrineSalinity()
@@ -989,7 +995,7 @@ float Brineomatic::getBrineSalinity()
 void Brineomatic::setBrineSalinity(float salinity)
 {
   currentBrineSalinity = salinity;
-  brineSalinityStats.add(salinity);
+  stats.add("brine_salinity", salinity);
 }
 
 float Brineomatic::getProductSalinityMaximum()
@@ -1410,7 +1416,7 @@ void Brineomatic::runStateMachine()
 
       closeDiverterValve();
 
-      startSensorStatistics();
+      stats.startCycle("run");
 
       uint32_t productionStart = millis();
       while (true) {
@@ -1493,6 +1499,8 @@ void Brineomatic::runStateMachine()
       totalCycles++;
       _app.config.preferences.putUInt("bomTotCycles", totalCycles);
 
+      stats.stopCycle();
+
       // save it!
       logResult(Status::RUNNING, runResult);
 
@@ -1509,7 +1517,7 @@ void Brineomatic::runStateMachine()
       YBP.println("STOPPING");
       YBP.printf("Run Status: %s\n", resultToString(runResult));
 
-      stopSensorStatistics();
+      stats.stopCycle();
       resetErrorTimers();
 
       // treat anything other than success as a hard stop
@@ -1572,6 +1580,8 @@ void Brineomatic::runStateMachine()
         enableHighPressurePump();
         vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
       }
+
+      stats.startCycle("flush");
 
       // check our sensors while we flush
       while (true) {
@@ -1636,6 +1646,8 @@ void Brineomatic::runStateMachine()
       pickledOnTimestamp = 0;
       _app.config.preferences.putLong64("bomPickledOn", pickledOnTimestamp);
 
+      stats.stopCycle();
+
       // save to our log.
       logResult(Status::FLUSHING, flushResult);
 
@@ -1669,12 +1681,15 @@ void Brineomatic::runStateMachine()
       enableHighPressurePump();
       vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
+      stats.startCycle("pickle");
+
       while (getPickleElapsed() < pickleDuration) {
         if (stopFlag)
           break;
 
         if (checkPickleTotalFlowrateLow(pickleResult)) {
           currentStatus = Status::IDLE;
+          stats.stopCycle();
           initializeHardware(true);
           return logResult(Status::PICKLING, pickleResult);
         }
@@ -1684,6 +1699,7 @@ void Brineomatic::runStateMachine()
 
       if (initializeHardware(stopFlag)) {
         currentStatus = Status::IDLE;
+        stats.stopCycle();
         return logResult(Status::PICKLING, pickleResult);
       }
 
@@ -1701,6 +1717,8 @@ void Brineomatic::runStateMachine()
         pickledOnTimestamp = _app.ntp.getTime();
         _app.config.preferences.putLong64("bomPickledOn", pickledOnTimestamp);
       }
+
+      stats.stopCycle();
 
       logResult(Status::PICKLING, pickleResult);
 
@@ -1726,12 +1744,15 @@ void Brineomatic::runStateMachine()
       enableHighPressurePump();
       vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
+      stats.startCycle("depickle");
+
       while (getDepickleElapsed() < depickleDuration) {
         if (stopFlag)
           break;
 
         if (checkPickleTotalFlowrateLow(depickleResult)) {
           currentStatus = Status::IDLE;
+          stats.stopCycle();
           initializeHardware(true);
           return logResult(Status::DEPICKLING, depickleResult);
         }
@@ -1741,6 +1762,7 @@ void Brineomatic::runStateMachine()
 
       if (initializeHardware(stopFlag)) {
         currentStatus = Status::IDLE;
+        stats.stopCycle();
         return logResult(Status::DEPICKLING, depickleResult);
       }
 
@@ -1755,6 +1777,8 @@ void Brineomatic::runStateMachine()
       _app.config.preferences.putBool("bomPickled", false);
       pickledOnTimestamp = 0;
       _app.config.preferences.putLong64("bomPickledOn", pickledOnTimestamp);
+
+      stats.stopCycle();
 
       logResult(Status::DEPICKLING, depickleResult);
 
@@ -1779,30 +1803,6 @@ void Brineomatic::resetErrorTimers()
   diverterValveOpenStart = 0;
   productSalinityHighStart = 0;
   motorTemperatureStart = 0;
-}
-
-void Brineomatic::startSensorStatistics()
-{
-  waterTemperatureStats.start();
-  motorTemperatureStats.start();
-  productFlowrateStats.start();
-  brineFlowrateStats.start();
-  productSalinityStats.start();
-  brineSalinityStats.start();
-  filterPressureStats.start();
-  membranePressureStats.start();
-}
-
-void Brineomatic::stopSensorStatistics()
-{
-  waterTemperatureStats.stop();
-  motorTemperatureStats.stop();
-  productFlowrateStats.stop();
-  brineFlowrateStats.stop();
-  productSalinityStats.stop();
-  brineSalinityStats.stop();
-  filterPressureStats.stop();
-  membranePressureStats.stop();
 }
 
 bool Brineomatic::checkStopFlag(Result& result)
