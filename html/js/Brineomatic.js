@@ -1059,6 +1059,38 @@
     $("#bomTotalRuntime").html(`${totalRuntime} hours`);
     $("#bomAverageRuntime").html(`${avgRuntime} hours`);
     $("#bomAverageFlowrate").html(`${avgFlowrate} ${shortFlowrateUnits}`);
+
+    // Stash the latest per-cycle sensor stats so the modal reads fresh data on click.
+    this.latestCycleStats = msg.cycle_stats || {};
+
+    // Reconcile one "View Stats" row per cycle type. This runs every ~500ms, so only
+    // touch the DOM when the set of cycle types changes; the link reads latestCycleStats
+    // at click time, keeping the displayed values current without rebuilding rows.
+    const cycleKeys = Object.keys(this.latestCycleStats);
+    const tbody = $("#bomStatsTableBody");
+    cycleKeys.forEach((cycle) => {
+      const rowId = `bomCycleStatsRow_${cycle}`;
+      if (!document.getElementById(rowId)) {
+        const label = YB.Util.humanizeText(cycle);
+        const $row = $(`
+          <tr id="${rowId}">
+            <th scope="row">Last ${label} Cycle</th>
+            <td class="text-end"><a href="#" class="bomCycleStatsLink">View Stats</a></td>
+          </tr>`);
+        $row.find('.bomCycleStatsLink').on('click', function (e) {
+          e.preventDefault();
+          YB.bom.showStatsModal(`Last ${label} Cycle Stats`, YB.bom.latestCycleStats[cycle]);
+        });
+        tbody.append($row);
+      }
+    });
+
+    // Remove rows for cycle types no longer present.
+    tbody.find('tr[id^="bomCycleStatsRow_"]').each(function () {
+      const cycle = this.id.substring("bomCycleStatsRow_".length);
+      if (cycleKeys.indexOf(cycle) === -1)
+        $(this).remove();
+    });
   }
 
   Brineomatic.prototype.setDataColor = function (name, value, ele) {
@@ -5901,6 +5933,76 @@
     }).format(value);
   };
 
+  // Lazily create the shared sensor-stats modal once and append it to <body>.
+  Brineomatic.prototype.ensureStatsModal = function () {
+    if (document.getElementById('bomStatsModal'))
+      return;
+
+    const html = /* html */ `
+      <div class="modal fade" id="bomStatsModal" tabindex="-1" aria-labelledby="bomStatsModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h1 class="modal-title fs-5" id="bomStatsModalTitle">Sensor Statistics</h1>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="bomStatsModalBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    $('body').append(html);
+  };
+
+  // Build a sensor-per-row table for a stats object: { sensor_key: {start,end,min,max,avg,stddev|std} }
+  Brineomatic.prototype.buildStatsTableHtml = function (statsData) {
+    const keys = statsData ? Object.keys(statsData) : [];
+    if (!keys.length)
+      return '<p class="text-muted mb-0">No statistics recorded.</p>';
+
+    var rows = keys.map((key) => {
+      var s = statsData[key];
+      return `
+        <tr>
+          <th scope="row">${YB.Util.humanizeText(key)}</th>
+          <td class="text-end">${this.formatReadable(s.start)}</td>
+          <td class="text-end">${this.formatReadable(s.end)}</td>
+          <td class="text-end">${this.formatReadable(s.min)}</td>
+          <td class="text-end">${this.formatReadable(s.max)}</td>
+          <td class="text-end">${this.formatReadable(s.avg)}</td>
+          <td class="text-end">${this.formatReadable(s.stddev)}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <table class="table table-hover table-sm mb-0">
+        <thead>
+          <tr>
+            <th scope="col">Sensor</th>
+            <th class="text-end" scope="col">Start</th>
+            <th class="text-end" scope="col">End</th>
+            <th class="text-end" scope="col">Min</th>
+            <th class="text-end" scope="col">Max</th>
+            <th class="text-end" scope="col">Avg</th>
+            <th class="text-end" scope="col">Std Dev</th>
+          </tr>
+        </thead>
+        <tbody class="table-group-divider">${rows}</tbody>
+      </table>`;
+  };
+
+  // Single entry point: populate and show the shared stats modal.
+  Brineomatic.prototype.showStatsModal = function (title, statsData) {
+    this.ensureStatsModal();
+    $('#bomStatsModalTitle').text(title);
+    $('#bomStatsModalBody').html(this.buildStatsTableHtml(statsData));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('bomStatsModal')).show();
+  };
+
   Brineomatic.loadRunLog = function () {
     $.ajax({
       url: '/run_log.json',
@@ -5918,12 +6020,12 @@
 
         var entries = lines.map(function (l) { return JSON.parse(l); }).reverse();
 
-        var data = entries.map(function (entry) {
+        var data = entries.map(function (entry, index) {
           var dt = new Date(entry.timestamp * 1000);
           var dateStr = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
           var elapsedStr = entry.elapsed !== undefined ? YB.Util.secondsToDhms(Math.round(entry.elapsed / 1000), 2) || '0 secs' : '-';
           var volumeStr = entry.volume !== undefined ? bom.formatReadable(bom.convertVolume(entry.volume, 'liters', volumeUnits)) + ' ' + shortUnits : '-';
-          return [dateStr, entry.mode, entry.result, elapsedStr, volumeStr];
+          return [dateStr, entry.mode, entry.result, elapsedStr, volumeStr, index];
         });
 
         $('#brineomaticRunLogContent').html('<div class="yarrboardLog" id="brineomaticRunLogGrid"></div><a href="/run_log.json" class="btn btn-small btn-primary mt-2">Download run log as JSON</a>');
@@ -5934,7 +6036,15 @@
             { name: 'Mode', sort: true, formatter: function (cell) { return gridjs.html(bom.modeBadgeHtml(cell)); } },
             { name: 'Result', sort: true, formatter: function (cell) { return gridjs.html(bom.resultBadgeHtml(cell)); } },
             { name: 'Elapsed', sort: true },
-            { name: 'Volume', sort: true }
+            { name: 'Volume', sort: true },
+            {
+              name: 'Stats', sort: false, formatter: function (index) {
+                var entry = entries[index];
+                if (entry && entry.stats && Object.keys(entry.stats).length)
+                  return gridjs.html(`<a href="#" class="bomRunStatsLink" data-stats-index="${index}">View</a>`);
+                return gridjs.html('<span class="text-muted">—</span>');
+              }
+            }
           ],
           data: data,
           search: {
@@ -5948,6 +6058,16 @@
           pagination: { limit: 25 },
           sort: true
         }).render(document.getElementById('brineomaticRunLogGrid'));
+
+        // Delegated handler: GridJS re-renders on sort/page, so bind on the container.
+        $('#brineomaticRunLogGrid').on('click', '.bomRunStatsLink', function (e) {
+          e.preventDefault();
+          var entry = entries[$(this).data('stats-index')];
+          if (!entry) return;
+          var dt = new Date(entry.timestamp * 1000);
+          var dateStr = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
+          bom.showStatsModal(`${entry.mode} — ${dateStr}`, entry.stats);
+        });
 
         let page = YB.App.getPage("logs");
         page.ready = true;

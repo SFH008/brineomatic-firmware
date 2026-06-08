@@ -89,10 +89,10 @@ void Brineomatic::init()
   currentMembranePressureTarget = -1;
 
   // declare which sensors each cycle tracks
-  stats.defineCycle("run", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "brine_salinity", "filter_pressure", "membrane_pressure"});
-  stats.defineCycle("flush", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "brine_salinity", "filter_pressure", "membrane_pressure"});
-  stats.defineCycle("pickle", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "brine_salinity", "filter_pressure", "membrane_pressure"});
-  stats.defineCycle("depickle", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "brine_salinity", "filter_pressure", "membrane_pressure"});
+  stats.defineCycle("run", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
+  stats.defineCycle("flush", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
+  stats.defineCycle("pickle", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
+  stats.defineCycle("depickle", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
 
   currentStatus = Status::STARTUP;
   runResult = Result::STARTUP;
