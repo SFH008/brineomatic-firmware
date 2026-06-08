@@ -120,7 +120,7 @@ class BrineomaticController : public BaseController
     void generateConfigJSON(JsonVariant output, UserRole role, ConfigPurpose purpose);
 
     // Per-run sensor statistics (start/end/min/max/avg for each tracked sensor).
-    void generateRunStatsJSON(JsonVariant output);
+    void generateCycleStats(JsonVariant output);
 
     bool validateConfigJSON(JsonVariant config, char* error, size_t err_size);
     bool validateUIConfigJSON(JsonVariant config, char* error, size_t err_size);

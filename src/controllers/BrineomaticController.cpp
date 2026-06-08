@@ -236,9 +236,9 @@ void BrineomaticController::generateUpdateHook(JsonVariant output)
   }
 };
 
-void BrineomaticController::generateRunStatsJSON(JsonVariant output)
+void BrineomaticController::generateCycleStats(JsonVariant output)
 {
-  JsonObject stats = output["run_stats"].to<JsonObject>();
+  JsonObject stats = output["cycle_stats"].to<JsonObject>();
 
   // walk the table as cycle -> (sensor -> stats); skip sensors with no samples
   for (auto& cycle : wm.stats) {
