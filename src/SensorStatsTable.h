@@ -4,6 +4,7 @@
 #include "SensorStatistics.h"
 #include "etl/map.h"
 #include "etl/string.h"
+#include <ArduinoJson.h>
 #include <initializer_list>
 
 //
@@ -83,7 +84,51 @@ class SensorStatsTable
     CycleMap::iterator begin() { return _cycles.begin(); }
     CycleMap::iterator end() { return _cycles.end(); }
 
+    // Serialize a single cycle's sensors into `out` as sensor -> stats objects.
+    // Sensors with no samples are skipped.  Returns the number of sensors
+    // written, so callers can drop an empty parent (e.g. log.remove("stats")).
+    size_t cycleToJson(const char* cycle, JsonObject out)
+    {
+      auto it = _cycles.find(Key(cycle));
+      if (it == _cycles.end())
+        return 0;
+      return sensorMapToJson(it->second, out);
+    }
+
+    // Serialize every cycle into `out` as cycle -> (sensor -> stats).  Cycles
+    // whose sensors all lack samples are dropped entirely.
+    void toJson(JsonObject out)
+    {
+      for (auto& cycle : _cycles) {
+        JsonObject cycleObj = out[cycle.first.c_str()].to<JsonObject>();
+        if (sensorMapToJson(cycle.second, cycleObj) == 0)
+          out.remove(cycle.first.c_str());
+      }
+    }
+
   private:
+    // Write each sampled sensor in `sm` as a stats object under `out`; returns
+    // the count written so callers can decide whether the parent is empty.
+    static size_t sensorMapToJson(SensorMap& sm, JsonObject out)
+    {
+      size_t written = 0;
+      for (auto& sensor : sm) {
+        SensorStatistics& st = sensor.second;
+        if (st.count() == 0)
+          continue;
+
+        JsonObject s = out[sensor.first.c_str()].to<JsonObject>();
+        s["start"] = st.getStart();
+        s["end"] = st.getEnd();
+        s["min"] = st.getMinimum();
+        s["max"] = st.getMaximum();
+        s["avg"] = st.getAverage();
+        s["std"] = st.getStdDev();
+        written++;
+      }
+      return written;
+    }
+
     CycleMap _cycles;
 };
 

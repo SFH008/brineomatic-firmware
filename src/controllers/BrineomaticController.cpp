@@ -236,33 +236,6 @@ void BrineomaticController::generateUpdateHook(JsonVariant output)
   }
 };
 
-void BrineomaticController::generateCycleStats(JsonVariant output)
-{
-  JsonObject stats = output["cycle_stats"].to<JsonObject>();
-
-  // walk the table as cycle -> (sensor -> stats); skip sensors with no samples
-  for (auto& cycle : wm.stats) {
-    JsonObject cycleObj = stats[cycle.first.c_str()].to<JsonObject>();
-    for (auto& sensor : cycle.second) {
-      SensorStatistics& st = sensor.second;
-      if (st.count() == 0)
-        continue;
-
-      JsonObject s = cycleObj[sensor.first.c_str()].to<JsonObject>();
-      s["start"] = st.getStart();
-      s["end"] = st.getEnd();
-      s["min"] = st.getMinimum();
-      s["max"] = st.getMaximum();
-      s["avg"] = st.getAverage();
-      s["std"] = st.getStdDev();
-    }
-
-    // drop the cycle entry entirely if no sensors had samples
-    if (cycleObj.size() == 0)
-      stats.remove(cycle.first.c_str());
-  }
-};
-
 void BrineomaticController::mqttUpdateHook(MQTTController* mqtt)
 {
   JsonDocument output;
@@ -937,6 +910,8 @@ void BrineomaticController::generateStatsHook(JsonVariant output)
   output["total_cycles"] = wm.getTotalCycles();
   output["total_volume"] = wm.getTotalVolume();
   output["total_runtime"] = wm.getTotalRuntime();
+
+  wm.stats.toJson(output["cycle_stats"].to<JsonObject>());
 };
 
 void BrineomaticController::handleStartWatermaker(JsonVariantConst input, JsonVariant output, ProtocolContext context)

@@ -2267,18 +2267,23 @@ void Brineomatic::logResult(Status status, Result result)
   log["result"] = resultToString(result);
   log["total_runtime"] = totalRuntime;
 
+  JsonObject statsObj = log["stats"].to<JsonObject>();
   if (status == Status::RUNNING) {
     log["elapsed"] = getRuntimeElapsed();
     log["volume"] = getVolume();
+    stats.cycleToJson("run", statsObj);
   } else if (status == Status::FLUSHING) {
     log["elapsed"] = getFlushElapsed();
     log["volume"] = getFlushVolume();
+    stats.cycleToJson("flush", statsObj);
   } else if (status == Status::PICKLING) {
     log["elapsed"] = getPickleElapsed();
     log["volume"] = getTotalVolume();
+    stats.cycleToJson("pickle", statsObj);
   } else if (status == Status::DEPICKLING) {
     log["elapsed"] = getDepickleElapsed();
     log["volume"] = getTotalVolume();
+    stats.cycleToJson("depickle", statsObj);
   }
 
   File f = LittleFS.open("/run_log.json", "a");
