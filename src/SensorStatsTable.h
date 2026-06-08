@@ -123,7 +123,7 @@ class SensorStatsTable
         s["min"] = st.getMinimum();
         s["max"] = st.getMaximum();
         s["avg"] = st.getAverage();
-        s["std"] = st.getStdDev();
+        s["stddev"] = st.getStdDev();
         written++;
       }
       return written;
