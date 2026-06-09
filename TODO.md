@@ -1,5 +1,13 @@
 # v2.7
 
+* split autoflush into two modes:
+    * Scheduled Flush -> run every X hours
+        * none, flush_duration, flush_volume. no flush_salinity
+    * Post-Run Flush -> run after every run cycle
+        * none, flush_duration, flush_volume, flush_salinity
+
+# v2.8
+
 * configurable thresholds for gauges - issue #3
 * threshold indication on gauges - issue #9
 * add graphs (stored in psram)
