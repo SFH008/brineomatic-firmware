@@ -1,7 +1,3 @@
-# v2.7
-
-* [done] split autoflush into two modes (Post Run Flush + Scheduled Flush)
-
 # v2.8
 
 * configurable thresholds for gauges - issue #3
