@@ -1237,11 +1237,14 @@ void BrineomaticController::generateConfigJSON(JsonVariant output, UserRole role
 
   output["gauge_order"] = _config.gaugeOrder;
 
-  output["autoflush_mode"] = _config.autoflushMode;
-  output["autoflush_salinity"] = _config.autoflushSalinity;
-  output["autoflush_duration"] = _config.autoflushDuration;
-  output["autoflush_volume"] = _config.autoflushVolume;
-  output["autoflush_interval"] = _config.autoflushInterval;
+  output["post_run_flush_mode"] = _config.postRunFlushMode;
+  output["post_run_flush_salinity"] = _config.postRunFlushSalinity;
+  output["post_run_flush_duration"] = _config.postRunFlushDuration;
+  output["post_run_flush_volume"] = _config.postRunFlushVolume;
+  output["scheduled_flush_mode"] = _config.scheduledFlushMode;
+  output["scheduled_flush_duration"] = _config.scheduledFlushDuration;
+  output["scheduled_flush_volume"] = _config.scheduledFlushVolume;
+  output["scheduled_flush_interval"] = _config.scheduledFlushInterval;
   output["autoflush_use_high_pressure_motor"] = _config.autoflushUseHighPressureMotor;
 
   output["flush_timeout"] = _config.flushTimeout;
@@ -1435,45 +1438,72 @@ bool BrineomaticController::validateGeneralConfigJSON(JsonVariant config, char* 
 {
   bool ok = true;
 
-  if (config["autoflush_mode"]) {
-    if (!checkInclusion(config, "autoflush_mode", Brineomatic::AUTOFLUSH_MODES, error, err_size)) {
+  // post run flush
+  if (config["post_run_flush_mode"]) {
+    if (!checkInclusion(config, "post_run_flush_mode", Brineomatic::POST_RUN_FLUSH_MODES, error, err_size)) {
       ok = false;
-      config.remove("autoflush_mode");
+      config.remove("post_run_flush_mode");
     }
   }
 
-  // autoflush_salinity (integer >= 0)
-  if (config["autoflush_salinity"]) {
-    if (!checkIsNumber(config, "autoflush_salinity", error, err_size) ||
-        !checkNumGT(config, "autoflush_salinity", 0, error, err_size)) {
-      config.remove("autoflush_salinity");
-      ok = false;
-    }
-  }
-
-  // autoflush_duration (number >= 0)
-  if (config["autoflush_duration"]) {
-    if (!checkIsNumber(config, "autoflush_duration", error, err_size) ||
-        !checkNumGT(config, "autoflush_duration", 0, error, err_size)) {
-      config.remove("autoflush_duration");
+  // post_run_flush_salinity (integer >= 0)
+  if (config["post_run_flush_salinity"]) {
+    if (!checkIsNumber(config, "post_run_flush_salinity", error, err_size) ||
+        !checkNumGT(config, "post_run_flush_salinity", 0, error, err_size)) {
+      config.remove("post_run_flush_salinity");
       ok = false;
     }
   }
 
-  // autoflush_volume (number >= 0)
-  if (config["autoflush_volume"]) {
-    if (!checkIsNumber(config, "autoflush_volume", error, err_size) ||
-        !checkNumGT(config, "autoflush_volume", 0, error, err_size)) {
-      config.remove("autoflush_volume");
+  // post_run_flush_duration (number >= 0)
+  if (config["post_run_flush_duration"]) {
+    if (!checkIsNumber(config, "post_run_flush_duration", error, err_size) ||
+        !checkNumGT(config, "post_run_flush_duration", 0, error, err_size)) {
+      config.remove("post_run_flush_duration");
       ok = false;
     }
   }
 
-  // autoflush_interval (number >= 0)
-  if (config["autoflush_interval"]) {
-    if (!checkIsNumber(config, "autoflush_interval", error, err_size) ||
-        !checkNumGT(config, "autoflush_interval", 0, error, err_size)) {
-      config.remove("autoflush_interval");
+  // post_run_flush_volume (number >= 0)
+  if (config["post_run_flush_volume"]) {
+    if (!checkIsNumber(config, "post_run_flush_volume", error, err_size) ||
+        !checkNumGT(config, "post_run_flush_volume", 0, error, err_size)) {
+      config.remove("post_run_flush_volume");
+      ok = false;
+    }
+  }
+
+  // scheduled flush
+  if (config["scheduled_flush_mode"]) {
+    if (!checkInclusion(config, "scheduled_flush_mode", Brineomatic::SCHEDULED_FLUSH_MODES, error, err_size)) {
+      ok = false;
+      config.remove("scheduled_flush_mode");
+    }
+  }
+
+  // scheduled_flush_duration (number >= 0)
+  if (config["scheduled_flush_duration"]) {
+    if (!checkIsNumber(config, "scheduled_flush_duration", error, err_size) ||
+        !checkNumGT(config, "scheduled_flush_duration", 0, error, err_size)) {
+      config.remove("scheduled_flush_duration");
+      ok = false;
+    }
+  }
+
+  // scheduled_flush_volume (number >= 0)
+  if (config["scheduled_flush_volume"]) {
+    if (!checkIsNumber(config, "scheduled_flush_volume", error, err_size) ||
+        !checkNumGT(config, "scheduled_flush_volume", 0, error, err_size)) {
+      config.remove("scheduled_flush_volume");
+      ok = false;
+    }
+  }
+
+  // scheduled_flush_interval (number >= 0)
+  if (config["scheduled_flush_interval"]) {
+    if (!checkIsNumber(config, "scheduled_flush_interval", error, err_size) ||
+        !checkNumGT(config, "scheduled_flush_interval", 0, error, err_size)) {
+      config.remove("scheduled_flush_interval");
       ok = false;
     }
   }
@@ -2594,11 +2624,23 @@ void BrineomaticController::loadHardwareConfigJSON(JsonVariantConst config)
   _config.flushValveOpenAngle = config["flush_valve_open_angle"] | defaults.flushValveOpenAngle;
   _config.flushValveCloseAngle = config["flush_valve_close_angle"] | defaults.flushValveCloseAngle;
 
-  _config.autoflushMode = config["autoflush_mode"] | defaults.autoflushMode;
-  _config.autoflushSalinity = config["autoflush_salinity"] | defaults.autoflushSalinity;
-  _config.autoflushDuration = config["autoflush_duration"] | defaults.autoflushDuration;
-  _config.autoflushVolume = config["autoflush_volume"] | defaults.autoflushVolume;
-  _config.autoflushInterval = config["autoflush_interval"] | defaults.autoflushInterval;
+  // Flush settings.  Legacy "autoflush_*" keys are migrated for backward
+  // compatibility: post run flush inherits them directly; scheduled flush
+  // inherits them too, except SALINITY mode (not valid for scheduled) which
+  // falls back to the default mode.
+  String legacyFlushMode = config["autoflush_mode"] | defaults.postRunFlushMode;
+
+  _config.postRunFlushMode = config["post_run_flush_mode"] | legacyFlushMode;
+  _config.postRunFlushSalinity = config["post_run_flush_salinity"] | (float) (config["autoflush_salinity"] | defaults.postRunFlushSalinity);
+  _config.postRunFlushDuration = config["post_run_flush_duration"] | (uint32_t) (config["autoflush_duration"] | defaults.postRunFlushDuration);
+  _config.postRunFlushVolume = config["post_run_flush_volume"] | (float) (config["autoflush_volume"] | defaults.postRunFlushVolume);
+
+  String scheduledLegacyMode = legacyFlushMode.equals("SALINITY") ? String(defaults.scheduledFlushMode) : legacyFlushMode;
+  _config.scheduledFlushMode = config["scheduled_flush_mode"] | scheduledLegacyMode;
+  _config.scheduledFlushDuration = config["scheduled_flush_duration"] | (uint32_t) (config["autoflush_duration"] | defaults.scheduledFlushDuration);
+  _config.scheduledFlushVolume = config["scheduled_flush_volume"] | (float) (config["autoflush_volume"] | defaults.scheduledFlushVolume);
+  _config.scheduledFlushInterval = config["scheduled_flush_interval"] | (uint32_t) (config["autoflush_interval"] | defaults.scheduledFlushInterval);
+
   _config.autoflushUseHighPressureMotor = config["autoflush_use_high_pressure_motor"] | defaults.autoflushUseHighPressureMotor;
 
   _config.coolingFanControl = config["cooling_fan_control"] | defaults.coolingFanControl;

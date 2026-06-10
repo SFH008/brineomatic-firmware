@@ -63,7 +63,7 @@ void Brineomatic::init()
   else
     totalCycles = 0;
 
-  if (autoflushEnabled()) {
+  if (scheduledFlushEnabled()) {
     lastAutoflushTimeMillis = millis();
     lastAutoflushTimeNTP = _app.config.preferences.getLong64("lastautoflush");
   }
@@ -634,12 +634,20 @@ bool Brineomatic::initializeHardware(bool emergencyStop)
   return isFailure;
 }
 
-bool Brineomatic::autoflushEnabled()
+bool Brineomatic::postRunFlushEnabled()
 {
   if (!hasFlushValve())
     return false;
 
-  return !_config.autoflushMode.equals("NONE");
+  return !_config.postRunFlushMode.equals("NONE");
+}
+
+bool Brineomatic::scheduledFlushEnabled()
+{
+  if (!hasFlushValve())
+    return false;
+
+  return !_config.scheduledFlushMode.equals("NONE");
 }
 
 bool Brineomatic::hasBoostPump()
@@ -1102,14 +1110,14 @@ const char* Brineomatic::resultToString(Result result)
 
 uint32_t Brineomatic::getNextFlushCountdown()
 {
-  if (currentStatus == Status::IDLE && autoflushEnabled()) {
+  if (currentStatus == Status::IDLE && scheduledFlushEnabled()) {
     uint32_t elapsed;
     if (_app.ntp.isReady() && lastAutoflushTimeNTP > 1700000000)
       elapsed = (_app.ntp.getTime() - lastAutoflushTimeNTP) * 1000;
     else
       elapsed = millis() - lastAutoflushTimeMillis;
 
-    return _config.autoflushInterval - elapsed;
+    return _config.scheduledFlushInterval - elapsed;
   }
 
   return 0;
@@ -1328,20 +1336,18 @@ void Brineomatic::runStateMachine()
     // IDLE
     //
     case Status::IDLE:
-      if (autoflushEnabled()) {
+      if (scheduledFlushEnabled()) {
         uint32_t elapsed;
         if (_app.ntp.isReady() && lastAutoflushTimeNTP > 1700000000)
           elapsed = (_app.ntp.getTime() - lastAutoflushTimeNTP) * 1000;
         else
           elapsed = millis() - lastAutoflushTimeMillis;
 
-        if (elapsed > _config.autoflushInterval) {
-          if (_config.autoflushMode.equals("TIME"))
-            flushDuration(_config.autoflushDuration);
-          else if (_config.autoflushMode.equals("VOLUME"))
-            flushVolume(_config.autoflushVolume);
-          else if (_config.autoflushMode.equals("SALINITY"))
-            flush();
+        if (elapsed > _config.scheduledFlushInterval) {
+          if (_config.scheduledFlushMode.equals("TIME"))
+            flushDuration(_config.scheduledFlushDuration);
+          else if (_config.scheduledFlushMode.equals("VOLUME"))
+            flushVolume(_config.scheduledFlushVolume);
         }
       }
       break;
@@ -1535,14 +1541,12 @@ void Brineomatic::runStateMachine()
         else
           _app.playMelody(_config.errorMelody.c_str());
 
-        if (_config.autoflushMode.equals("TIME"))
-          flushDuration(_config.autoflushDuration);
-        else if (_config.autoflushMode.equals("VOLUME"))
-          flushVolume(_config.autoflushVolume);
-        else if (_config.autoflushMode.equals("SALINITY"))
+        if (_config.postRunFlushMode.equals("TIME"))
+          flushDuration(_config.postRunFlushDuration);
+        else if (_config.postRunFlushMode.equals("VOLUME"))
+          flushVolume(_config.postRunFlushVolume);
+        else if (_config.postRunFlushMode.equals("SALINITY"))
           flush();
-        else if (_config.autoflushMode.equals("NONE"))
-          currentStatus = Status::IDLE;
         else
           currentStatus = Status::IDLE;
       }
@@ -1617,7 +1621,7 @@ void Brineomatic::runStateMachine()
 
         // how about salinity? (auto)
         if (desiredFlushDuration == 0 && desiredFlushVolume == 0) {
-          if (getBrineSalinity() < _config.autoflushSalinity) {
+          if (getBrineSalinity() < _config.postRunFlushSalinity) {
             DUMP("SALINITY");
             flushResult = Result::SUCCESS_SALINITY;
             break;
@@ -1633,7 +1637,8 @@ void Brineomatic::runStateMachine()
         vTaskDelay(pdMS_TO_TICKS(100));
       }
 
-      if (autoflushEnabled()) {
+      // either flush (post run or scheduled) resets the scheduled flush timer
+      if (scheduledFlushEnabled()) {
         lastAutoflushTimeMillis = millis();
         if (_app.ntp.isReady()) {
           lastAutoflushTimeNTP = _app.ntp.getTime();

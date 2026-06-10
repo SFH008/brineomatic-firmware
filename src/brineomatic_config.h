@@ -581,11 +581,19 @@
 struct BrineomaticConfig {
     String gaugeOrder = "";
 
-    String autoflushMode = YB_AUTOFLUSH_MODE;
-    float autoflushSalinity = YB_AUTOFLUSH_SALINITY;
-    uint32_t autoflushDuration = YB_AUTOFLUSH_DURATION;
-    float autoflushVolume = YB_AUTOFLUSH_VOLUME;
-    uint32_t autoflushInterval = YB_AUTOFLUSH_INTERVAL;
+    // Post run flush: runs after every run cycle (NONE/TIME/SALINITY/VOLUME)
+    String postRunFlushMode = YB_AUTOFLUSH_MODE;
+    float postRunFlushSalinity = YB_AUTOFLUSH_SALINITY;
+    uint32_t postRunFlushDuration = YB_AUTOFLUSH_DURATION;
+    float postRunFlushVolume = YB_AUTOFLUSH_VOLUME;
+
+    // Scheduled flush: runs every interval from idle (NONE/TIME/VOLUME, no salinity)
+    String scheduledFlushMode = YB_AUTOFLUSH_MODE;
+    uint32_t scheduledFlushDuration = YB_AUTOFLUSH_DURATION;
+    float scheduledFlushVolume = YB_AUTOFLUSH_VOLUME;
+    uint32_t scheduledFlushInterval = YB_AUTOFLUSH_INTERVAL;
+
+    // Shared between both flush modes
     bool autoflushUseHighPressureMotor = YB_AUTOFLUSH_USE_HIGH_PRESSURE_MOTOR;
 
     float tankCapacity = YB_TANK_CAPACITY; // Liters

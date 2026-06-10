@@ -2957,48 +2957,82 @@
       </div>
 
       <div id="autoflush_form">
+        <h5 class="mt-3">Post Run Flush</h5>
+        <p class="text-muted small">Runs automatically after every run cycle.</p>
+
         <div class="form-floating mb-3">
-            <select id="autoflush_mode" class="form-select" aria-label="Autoflush Mode">
-              <option value="NONE">None (Autoflush Disabled)</option>
+            <select id="post_run_flush_mode" class="form-select" aria-label="Post Run Flush Mode">
+              <option value="NONE">None (Post Run Flush Disabled)</option>
               <option value="SALINITY">By Salinity</option>
               <option value="TIME">By Time</option>
               <option value="VOLUME">By Volume</option>
             </select>
-            <label for="autoflush_mode">Autoflush Mode</label>
+            <label for="post_run_flush_mode">Post Run Flush Mode</label>
             <div class="invalid-feedback"></div>
         </div>
 
-        <div id="autoflush_salinity_div" class="mb-3">
+        <div id="post_run_flush_salinity_div" class="mb-3">
           <div class="input-group has-validation">
-            <span class="input-group-text">Autoflush Salinity</span>
-            <input id="autoflush_salinity" type="text" class="form-control text-end">
+            <span class="input-group-text">Post Run Flush Salinity</span>
+            <input id="post_run_flush_salinity" type="text" class="form-control text-end">
             <span class="input-group-text">PPM</span>
             <div class="invalid-feedback"></div>
           </div>
         </div>
 
-        <div id="autoflush_duration_div" class="mb-3">
+        <div id="post_run_flush_duration_div" class="mb-3">
           <div class="input-group has-validation">
-            <span class="input-group-text">Autoflush Duration</span>
-            <input id="autoflush_duration" type="text" class="form-control text-end">
+            <span class="input-group-text">Post Run Flush Duration</span>
+            <input id="post_run_flush_duration" type="text" class="form-control text-end">
             <span class="input-group-text">minutes</span>
             <div class="invalid-feedback"></div>
           </div>
         </div>
 
-        <div id="autoflush_volume_div" class="mb-3">
+        <div id="post_run_flush_volume_div" class="mb-3">
           <div class="input-group has-validation">
-            <span class="input-group-text">Autoflush Volume</span>
-            <input id="autoflush_volume" type="text" class="form-control text-end">
+            <span class="input-group-text">Post Run Flush Volume</span>
+            <input id="post_run_flush_volume" type="text" class="form-control text-end">
             <span class="input-group-text volumeUnitsLong">liters</span>
             <div class="invalid-feedback"></div>
           </div>
         </div>
 
-        <div id="autoflush_interval_div" class="mb-3">
+        <h5 class="mt-3">Scheduled Flush</h5>
+        <p class="text-muted small">Runs automatically at a set interval.</p>
+
+        <div class="form-floating mb-3">
+            <select id="scheduled_flush_mode" class="form-select" aria-label="Scheduled Flush Mode">
+              <option value="NONE">None (Scheduled Flush Disabled)</option>
+              <option value="TIME">By Time</option>
+              <option value="VOLUME">By Volume</option>
+            </select>
+            <label for="scheduled_flush_mode">Scheduled Flush Mode</label>
+            <div class="invalid-feedback"></div>
+        </div>
+
+        <div id="scheduled_flush_duration_div" class="mb-3">
           <div class="input-group has-validation">
-            <span class="input-group-text">Autoflush Interval</span>
-            <input id="autoflush_interval" type="text" class="form-control text-end">
+            <span class="input-group-text">Scheduled Flush Duration</span>
+            <input id="scheduled_flush_duration" type="text" class="form-control text-end">
+            <span class="input-group-text">minutes</span>
+            <div class="invalid-feedback"></div>
+          </div>
+        </div>
+
+        <div id="scheduled_flush_volume_div" class="mb-3">
+          <div class="input-group has-validation">
+            <span class="input-group-text">Scheduled Flush Volume</span>
+            <input id="scheduled_flush_volume" type="text" class="form-control text-end">
+            <span class="input-group-text volumeUnitsLong">liters</span>
+            <div class="invalid-feedback"></div>
+          </div>
+        </div>
+
+        <div id="scheduled_flush_interval_div" class="mb-3">
+          <div class="input-group has-validation">
+            <span class="input-group-text">Scheduled Flush Interval</span>
+            <input id="scheduled_flush_interval" type="text" class="form-control text-end">
             <span class="input-group-text">hours</span>
             <div class="invalid-feedback"></div>
           </div>
@@ -3007,7 +3041,7 @@
         <div id="autoflush_use_high_pressure_motor_div" class="form-check form-switch mb-3">
           <input class="form-check-input" type="checkbox" id="autoflush_use_high_pressure_motor">
           <label class="form-check-label" for="autoflush_use_high_pressure_motor">
-            Use high pressure motor during autoflush
+            Use high pressure motor during flush
           </label>
           <div class="invalid-feedback"></div>
         </div>
@@ -3863,11 +3897,16 @@
     $("#flush_valve_open_angle").val(data.flush_valve_open_angle);
     $("#flush_valve_close_angle").val(data.flush_valve_close_angle);
 
-    $("#autoflush_mode").val(data.autoflush_mode);
-    $("#autoflush_salinity").val(data.autoflush_salinity);
-    $("#autoflush_duration").val(data.autoflush_duration / (60 * 1000));
-    $("#autoflush_volume").val(YB.bom.convertVolume(data.autoflush_volume, "liters", YB.config.brineomatic.volume_units));
-    $("#autoflush_interval").val(data.autoflush_interval / (60 * 60 * 1000));
+    $("#post_run_flush_mode").val(data.post_run_flush_mode);
+    $("#post_run_flush_salinity").val(data.post_run_flush_salinity);
+    $("#post_run_flush_duration").val(data.post_run_flush_duration / (60 * 1000));
+    $("#post_run_flush_volume").val(YB.bom.convertVolume(data.post_run_flush_volume, "liters", YB.config.brineomatic.volume_units));
+
+    $("#scheduled_flush_mode").val(data.scheduled_flush_mode);
+    $("#scheduled_flush_duration").val(data.scheduled_flush_duration / (60 * 1000));
+    $("#scheduled_flush_volume").val(YB.bom.convertVolume(data.scheduled_flush_volume, "liters", YB.config.brineomatic.volume_units));
+    $("#scheduled_flush_interval").val(data.scheduled_flush_interval / (60 * 60 * 1000));
+
     $("#autoflush_use_high_pressure_motor").prop('checked', data.autoflush_use_high_pressure_motor);
 
     $("#cooling_fan_control").val(data.cooling_fan_control);
@@ -4019,7 +4058,8 @@
 
   Brineomatic.prototype.updateHardwareUIConfig = function (data) {
     // control hardware
-    this.updateAutoflushVisibility(data.autoflush_mode);
+    this.updatePostRunFlushVisibility(data.post_run_flush_mode);
+    this.updateScheduledFlushVisibility(data.scheduled_flush_mode);
     this.updateBoostPumpVisibility(data.boost_pump_control);
     this.updateHighPressurePumpVisibility(data.high_pressure_pump_control);
     this.updateHighPressureValveVisibility(data.high_pressure_valve_control);
@@ -4125,7 +4165,8 @@
       };
 
       // Brineomatic config volume fields
-      convertVolumeField("#autoflush_volume");
+      convertVolumeField("#post_run_flush_volume");
+      convertVolumeField("#scheduled_flush_volume");
       convertVolumeField("#tank_capacity");
 
       //now do everything else.
@@ -4164,8 +4205,12 @@
       YB.bom.updateFlowrateUnits(e.target.value);
     });
 
-    $("#autoflush_mode").on("change", (e) => {
-      YB.bom.updateAutoflushVisibility(e.target.value);
+    $("#post_run_flush_mode").on("change", (e) => {
+      YB.bom.updatePostRunFlushVisibility(e.target.value);
+    });
+
+    $("#scheduled_flush_mode").on("change", (e) => {
+      YB.bom.updateScheduledFlushVisibility(e.target.value);
     });
 
     $("#boost_pump_control").on("change", (e) => {
@@ -4397,32 +4442,22 @@
     }
   }
 
-  Brineomatic.prototype.updateAutoflushVisibility = function (mode) {
-    // Hide all autoflush fields first
-    $("#autoflush_salinity_div").hide();
-    $("#autoflush_duration_div").hide();
-    $("#autoflush_volume_div").hide();
-    $("#autoflush_interval_div").hide();
-    $("#autoflush_use_high_pressure_motor_div").hide();
+  Brineomatic.prototype.updatePostRunFlushVisibility = function (mode) {
+    $("#post_run_flush_salinity_div").hide();
+    $("#post_run_flush_duration_div").hide();
+    $("#post_run_flush_volume_div").hide();
 
-    // Show based on mode
     switch (mode) {
       case "SALINITY":
-        $("#autoflush_salinity_div").show();
-        $("#autoflush_interval_div").show();
-        $("#autoflush_use_high_pressure_motor_div").show();
+        $("#post_run_flush_salinity_div").show();
         break;
 
       case "TIME":
-        $("#autoflush_duration_div").show();
-        $("#autoflush_interval_div").show();
-        $("#autoflush_use_high_pressure_motor_div").show();
+        $("#post_run_flush_duration_div").show();
         break;
 
       case "VOLUME":
-        $("#autoflush_volume_div").show();
-        $("#autoflush_interval_div").show();
-        $("#autoflush_use_high_pressure_motor_div").show();
+        $("#post_run_flush_volume_div").show();
         break;
 
       case "NONE":
@@ -4430,6 +4465,39 @@
         // None → show nothing
         break;
     }
+
+    this.updateFlushMotorVisibility();
+  }
+
+  Brineomatic.prototype.updateScheduledFlushVisibility = function (mode) {
+    $("#scheduled_flush_duration_div").hide();
+    $("#scheduled_flush_volume_div").hide();
+    $("#scheduled_flush_interval_div").hide();
+
+    switch (mode) {
+      case "TIME":
+        $("#scheduled_flush_duration_div").show();
+        $("#scheduled_flush_interval_div").show();
+        break;
+
+      case "VOLUME":
+        $("#scheduled_flush_volume_div").show();
+        $("#scheduled_flush_interval_div").show();
+        break;
+
+      case "NONE":
+      default:
+        // None → show nothing
+        break;
+    }
+
+    this.updateFlushMotorVisibility();
+  }
+
+  // Shared high pressure motor toggle: shown when either flush mode is enabled
+  Brineomatic.prototype.updateFlushMotorVisibility = function () {
+    const enabled = $("#post_run_flush_mode").val() !== "NONE" || $("#scheduled_flush_mode").val() !== "NONE";
+    $("#autoflush_use_high_pressure_motor_div").toggle(enabled);
   }
 
   Brineomatic.prototype.updateBoostPumpVisibility = function (mode) {
@@ -4866,11 +4934,16 @@
     data.flush_valve_open_angle = parseFloat($("#flush_valve_open_angle").val());
     data.flush_valve_close_angle = parseFloat($("#flush_valve_close_angle").val());
 
-    data.autoflush_mode = $("#autoflush_mode").val();
-    data.autoflush_salinity = parseFloat($("#autoflush_salinity").val());
-    data.autoflush_duration = Math.round(parseFloat($("#autoflush_duration").val()) * 60 * 1000);
-    data.autoflush_volume = YB.bom.convertVolume(parseFloat($("#autoflush_volume").val()), YB.config.brineomatic.volume_units, "liters");
-    data.autoflush_interval = Math.round(parseFloat($("#autoflush_interval").val()) * 60 * 60 * 1000);
+    data.post_run_flush_mode = $("#post_run_flush_mode").val();
+    data.post_run_flush_salinity = parseFloat($("#post_run_flush_salinity").val());
+    data.post_run_flush_duration = Math.round(parseFloat($("#post_run_flush_duration").val()) * 60 * 1000);
+    data.post_run_flush_volume = YB.bom.convertVolume(parseFloat($("#post_run_flush_volume").val()), YB.config.brineomatic.volume_units, "liters");
+
+    data.scheduled_flush_mode = $("#scheduled_flush_mode").val();
+    data.scheduled_flush_duration = Math.round(parseFloat($("#scheduled_flush_duration").val()) * 60 * 1000);
+    data.scheduled_flush_volume = YB.bom.convertVolume(parseFloat($("#scheduled_flush_volume").val()), YB.config.brineomatic.volume_units, "liters");
+    data.scheduled_flush_interval = Math.round(parseFloat($("#scheduled_flush_interval").val()) * 60 * 60 * 1000);
+
     data.autoflush_use_high_pressure_motor = $("#autoflush_use_high_pressure_motor").prop("checked");
 
     data.cooling_fan_control = $("#cooling_fan_control").val();
@@ -5300,31 +5373,48 @@
         }
       },
 
-      autoflush_mode: {
+      post_run_flush_mode: {
         presence: true,
         inclusion: ["NONE", "TIME", "SALINITY", "VOLUME"]
       },
 
-      autoflush_salinity: {
+      post_run_flush_salinity: {
         numericality: {
           onlyInteger: true,
           greaterThan: 0
         }
       },
 
-      autoflush_duration: {
+      post_run_flush_duration: {
         numericality: {
           greaterThan: 0
         }
       },
 
-      autoflush_volume: {
+      post_run_flush_volume: {
         numericality: {
           greaterThan: 0
         }
       },
 
-      autoflush_interval: {
+      scheduled_flush_mode: {
+        presence: true,
+        inclusion: ["NONE", "TIME", "VOLUME"]
+      },
+
+      scheduled_flush_duration: {
+        numericality: {
+          greaterThan: 0
+        }
+      },
+
+      scheduled_flush_volume: {
+        numericality: {
+          greaterThan: 0
+        }
+      },
+
+      scheduled_flush_interval: {
         numericality: {
           greaterThan: 0
         }

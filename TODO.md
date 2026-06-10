@@ -1,24 +1,6 @@
 # v2.7
 
-* split autoflush into two modes:
-    * Post Run Flush -> run after every run cycle
-        * none, time, volume, salinity
-        * all autoflush configuration settings become post_run_flush settings
-        * post run flush is triggered by the state machine after a run cycle.
-    * Scheduled Flush -> run every X hours
-        * none, time, volume. no salinity
-        * unless it was set to salinity mode, autoflush configuration settings become scheduled flush
-            * otherwise fall back to defaults
-        * schedule flush is triggered by the state machine from idle state after a certain interval
-    * autoflush_use_high_pressure_motor stays as a common/shared configuration option
-    * autoflushEnabled() will need to be split into two functions: scheduled and post_run
-    * we dont need separate the default variables, eg:
-        * YB_AUTOFLUSH_MODE
-        * YB_AUTOFLUSH_SALINITY
-        * YB_AUTOFLUSH_DURATION
-        * YB_AUTOFLUSH_VOLUME
-        * YB_AUTOFLUSH_INTERVAL
-    * FLUSHING portion of the state machine should be relatively unchanged as both flush cycles are the same mechanically, just the trigger method is different.  also, either flush should reset the time for scheduled flushes.
+* [done] split autoflush into two modes (Post Run Flush + Scheduled Flush)
 
 # v2.8
 

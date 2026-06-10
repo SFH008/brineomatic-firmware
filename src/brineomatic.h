@@ -88,7 +88,8 @@ class Brineomatic
     };
 
     // Static lookup tables
-    static constexpr const char* const AUTOFLUSH_MODES[] = {"NONE", "TIME", "SALINITY", "VOLUME"};
+    static constexpr const char* const POST_RUN_FLUSH_MODES[] = {"NONE", "TIME", "SALINITY", "VOLUME"};
+    static constexpr const char* const SCHEDULED_FLUSH_MODES[] = {"NONE", "TIME", "VOLUME"};
     static constexpr const char* const TEMPERATURE_UNITS[] = {"celsius", "fahrenheit"};
     static constexpr const char* const PRESSURE_UNITS[] = {"kilopascal", "psi", "bar"};
     static constexpr const char* const VOLUME_UNITS[] = {"liters", "gallons"};
@@ -196,7 +197,8 @@ class Brineomatic
 
     bool initializeHardware(bool emergencyStop = false);
 
-    bool autoflushEnabled();
+    bool postRunFlushEnabled();
+    bool scheduledFlushEnabled();
 
     bool isBoostPumpOn();
     bool hasBoostPump();
