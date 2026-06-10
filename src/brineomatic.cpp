@@ -1494,6 +1494,8 @@ void Brineomatic::runStateMachine()
         vTaskDelay(pdMS_TO_TICKS(100));
       }
 
+      stats.stopCycle();
+
       // save our total volume produced
       _app.config.preferences.putFloat("bomTotVolume", totalVolume);
 
@@ -1504,8 +1506,6 @@ void Brineomatic::runStateMachine()
       // save our total number of cycles
       totalCycles++;
       _app.config.preferences.putUInt("bomTotCycles", totalCycles);
-
-      stats.stopCycle();
 
       // save it!
       logResult(Status::RUNNING, runResult);
@@ -1636,6 +1636,8 @@ void Brineomatic::runStateMachine()
         vTaskDelay(pdMS_TO_TICKS(100));
       }
 
+      stats.stopCycle();
+
       // either flush (post run or scheduled) resets the scheduled flush timer
       if (scheduledFlushEnabled()) {
         lastAutoflushTimeMillis = millis();
@@ -1649,8 +1651,6 @@ void Brineomatic::runStateMachine()
       _app.config.preferences.putBool("bomPickled", false);
       pickledOnTimestamp = 0;
       _app.config.preferences.putLong64("bomPickledOn", pickledOnTimestamp);
-
-      stats.stopCycle();
 
       // save to our log.
       logResult(Status::FLUSHING, flushResult);
@@ -1692,8 +1692,8 @@ void Brineomatic::runStateMachine()
           break;
 
         if (checkPickleTotalFlowrateLow(pickleResult)) {
-          currentStatus = Status::IDLE;
           stats.stopCycle();
+          currentStatus = Status::IDLE;
           initializeHardware(true);
           return logResult(Status::PICKLING, pickleResult);
         }
@@ -1702,10 +1702,12 @@ void Brineomatic::runStateMachine()
       }
 
       if (initializeHardware(stopFlag)) {
-        currentStatus = Status::IDLE;
         stats.stopCycle();
+        currentStatus = Status::IDLE;
         return logResult(Status::PICKLING, pickleResult);
       }
+
+      stats.stopCycle();
 
       currentStatus = Status::PICKLED;
 
@@ -1721,8 +1723,6 @@ void Brineomatic::runStateMachine()
         pickledOnTimestamp = _app.ntp.getTime();
         _app.config.preferences.putLong64("bomPickledOn", pickledOnTimestamp);
       }
-
-      stats.stopCycle();
 
       logResult(Status::PICKLING, pickleResult);
 
@@ -1755,8 +1755,8 @@ void Brineomatic::runStateMachine()
           break;
 
         if (checkPickleTotalFlowrateLow(depickleResult)) {
-          currentStatus = Status::IDLE;
           stats.stopCycle();
+          currentStatus = Status::IDLE;
           initializeHardware(true);
           return logResult(Status::DEPICKLING, depickleResult);
         }
@@ -1765,10 +1765,12 @@ void Brineomatic::runStateMachine()
       }
 
       if (initializeHardware(stopFlag)) {
-        currentStatus = Status::IDLE;
         stats.stopCycle();
+        currentStatus = Status::IDLE;
         return logResult(Status::DEPICKLING, depickleResult);
       }
+
+      stats.stopCycle();
 
       currentStatus = Status::IDLE;
 
@@ -1781,8 +1783,6 @@ void Brineomatic::runStateMachine()
       _app.config.preferences.putBool("bomPickled", false);
       pickledOnTimestamp = 0;
       _app.config.preferences.putLong64("bomPickledOn", pickledOnTimestamp);
-
-      stats.stopCycle();
 
       logResult(Status::DEPICKLING, depickleResult);
 
