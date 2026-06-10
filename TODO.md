@@ -1,5 +1,8 @@
 # v2.8
 
+* add stabilization delay before enabling tracking to RUN/FLUSH/DE/PICKLE
+* move stats.stopCycle() to the very first thing that happens after we're done
+
 * move non-hardware config out of hardware config - add a single tab "Runtime"
     * Flush Mode
         * auto flush configuration
