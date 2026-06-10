@@ -1,6 +1,12 @@
 # v2.8
 
-* add stabilization delay before enabling tracking to RUN/FLUSH/DE/PICKLE
+* add 5000ms stabilization delay before enabling stats.cycleStart() to RUN/FLUSH/DE/PICKLE
+    * should be started in the while() loop
+    * we can have one set of variables shared for this
+    * can live in the SensorStatsTable to make it clean.
+    * in cycleStart() it should check our internal timer and if not started, check the time.  if after the delay, then actually start tracking.
+    * make the delay a parameter to cycleStart with default 5000ms
+
 * move stats.stopCycle() to the very first thing that happens after we're done
 
 * move non-hardware config out of hardware config - add a single tab "Runtime"

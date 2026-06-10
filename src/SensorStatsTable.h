@@ -4,6 +4,7 @@
 #include "SensorStatistics.h"
 #include "etl/map.h"
 #include "etl/string.h"
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <initializer_list>
 
@@ -39,13 +40,26 @@ class SensorStatsTable
     // Direct access: table["run"]["water_temperature"]
     SensorMap& operator[](const char* cycle) { return _cycles[Key(cycle)]; }
 
-    // Begin / end tracking for every sensor in one cycle.
-    void startCycle(const char* cycle)
+    // Begin tracking for every sensor in one cycle, after a stabilization
+    // delay.  Call this repeatedly from inside the cycle's run loop: the first
+    // call arms an internal timer, and tracking only actually begins once
+    // `delay` ms have elapsed.  This skips the readings taken while pressures,
+    // flows and temperatures are still settling at the start of a cycle.
+    void startCycle(const char* cycle, uint32_t delay = 5000)
     {
+      // Arm the timer on the first call of a cycle.
+      if (_startTime == 0)
+        _startTime = millis();
+
+      // Already tracking, or still inside the stabilization window.
+      if (_started || millis() - _startTime < delay)
+        return;
+
       auto it = _cycles.find(Key(cycle));
       if (it != _cycles.end())
         for (auto& s : it->second)
           s.second.start();
+      _started = true;
     }
 
     void stopCycle(const char* cycle)
@@ -54,6 +68,8 @@ class SensorStatsTable
       if (it != _cycles.end())
         for (auto& s : it->second)
           s.second.stop();
+      _startTime = 0;
+      _started = false;
     }
 
     // Stop tracking for every sensor in every cycle.
@@ -62,6 +78,8 @@ class SensorStatsTable
       for (auto& c : _cycles)
         for (auto& s : c.second)
           s.second.stop();
+      _startTime = 0;
+      _started = false;
     }
 
     // Route a sample to whichever cycle is currently active.  add() is gated on
@@ -130,6 +148,10 @@ class SensorStatsTable
     }
 
     CycleMap _cycles;
+
+    // Shared stabilization-delay state for whichever cycle is currently active.
+    uint32_t _startTime = 0; // millis() when the current cycle armed (0 = idle)
+    bool _started = false;   // have we passed the delay and begun tracking?
 };
 
 #endif

@@ -1422,10 +1422,10 @@ void Brineomatic::runStateMachine()
 
       closeDiverterValve();
 
-      stats.startCycle("run");
-
       uint32_t productionStart = millis();
       while (true) {
+        stats.startCycle("run");
+
         if (checkBatteryLevel(runResult))
           return logResult(Status::RUNNING, runResult);
 
@@ -1585,10 +1585,9 @@ void Brineomatic::runStateMachine()
         vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
       }
 
-      stats.startCycle("flush");
-
       // check our sensors while we flush
       while (true) {
+        stats.startCycle("flush");
 
         if (checkFlushFilterPressureLow())
           break;
@@ -1686,9 +1685,9 @@ void Brineomatic::runStateMachine()
       enableHighPressurePump();
       vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
-      stats.startCycle("pickle");
-
       while (getPickleElapsed() < pickleDuration) {
+        stats.startCycle("pickle");
+
         if (stopFlag)
           break;
 
@@ -1749,9 +1748,9 @@ void Brineomatic::runStateMachine()
       enableHighPressurePump();
       vTaskDelay(pdMS_TO_TICKS(_config.highPressurePumpDelay));
 
-      stats.startCycle("depickle");
-
       while (getDepickleElapsed() < depickleDuration) {
+        stats.startCycle("depickle");
+
         if (stopFlag)
           break;
 
