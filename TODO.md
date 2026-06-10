@@ -1,5 +1,18 @@
 # v2.8
 
+* move non-hardware config out of hardware config - add a single tab "Runtime"
+    * Flush Mode
+        * auto flush configuration
+        * use hp pump
+        * configurable delays
+    * Run Mode
+        * boost pump delay
+        * hp pump delay
+        * hp valve angle + speed
+            * not step angle, gear ratio, or current... thats hardware
+        * PID vs Fixed Angle
+            * pid can have PID values here
+
 * configurable thresholds for gauges - issue #3
 * threshold indication on gauges - issue #9
 * add graphs (stored in psram)

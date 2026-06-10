@@ -2957,7 +2957,7 @@
       </div>
 
       <div id="autoflush_form">
-        <h5 class="mt-3">Post Run Flush</h5>
+        <h6 class="mt-3">Post Run Flush</h6>
         <p class="text-muted small">Runs automatically after every run cycle.</p>
 
         <div class="form-floating mb-3">
@@ -2998,7 +2998,7 @@
           </div>
         </div>
 
-        <h5 class="mt-3">Scheduled Flush</h5>
+        <h6 class="mt-3">Scheduled Flush</h6>
         <p class="text-muted small">Runs automatically at a set interval.</p>
 
         <div class="form-floating mb-3">
