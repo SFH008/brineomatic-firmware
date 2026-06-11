@@ -22,6 +22,13 @@
     this.charts = null;
     this.data = null;
     this.historyLoaded = null;
+
+    // How far back the graphs show, in seconds; driven by the range dropdown.
+    this.rangeSeconds = 3 * 3600;
+    // Device boot time in client-clock epoch seconds, learned from the uptime
+    // in each history preamble.  Lets a later fetch translate the wall-clock
+    // window into the device-uptime startTime the firmware filters on.
+    this._bootEpoch = undefined;
   }
 
   SensorGraphs.prototype.MAX_POINTS = 20000;
@@ -150,9 +157,19 @@
       first = false;
     }
 
+    let rangeOptions = '';
+    for (let h = 1; h <= 12; h++) {
+      const secs = h * 3600;
+      const selected = (secs === this.rangeSeconds) ? ' selected' : '';
+      rangeOptions += `<option value="${secs}"${selected}>Last ${h} Hour${h > 1 ? 's' : ''}</option>`;
+    }
+
     return `
       <div id="bomGraphs" class="col-md-12">
         <div class="nav" id="bomGraphsTabs" role="tablist">${tabs}</div>
+        <div class="my-2">
+          <select id="bomGraphRange" class="form-select form-select-sm d-inline-block" style="width:auto" aria-label="Graph time range">${rangeOptions}</select>
+        </div>
         <div class="tab-content">${panes}</div>
       </div>`;
   };
@@ -263,7 +280,7 @@
               return splits.map(function (t) {
                 const d = new Date(t * 1000);
                 const p = n => String(n).padStart(2, '0');
-                return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+                return `${p(d.getHours())}:${p(d.getMinutes())}`;
               });
             }
           },
@@ -310,6 +327,11 @@
         self.charts[key].setSize({ width: self.width(), height: self.HEIGHT });
       // fetch this tab's history on first reveal (no-op if already loaded)
       self.loadHistory(self.setup.find(tab => tab.key === key));
+    });
+
+    // changing the time range refetches fresh data for the new window
+    $('#bomGraphRange').on('change', function () {
+      self.setRange(parseInt(this.value, 10));
     });
 
     // keep the charts fitted to the window; setSize preserves the current
@@ -390,6 +412,17 @@
       });
   };
 
+  // Switch the history window.  Drop the loaded-flags so every tab refetches
+  // against the new range; the visible tab reloads now and the rest reload
+  // lazily the next time they're shown.
+  SensorGraphs.prototype.setRange = function (rangeSeconds) {
+    this.rangeSeconds = rangeSeconds;
+    this.historyLoaded = {};
+    const tab = this.activeTab();
+    if (tab)
+      this.loadHistory(tab);
+  };
+
   // Find the tab whose pane is currently active (the one the user is viewing).
   SensorGraphs.prototype.activeTab = function () {
     return this.setup.find(tab =>
@@ -406,7 +439,18 @@
     const self = this;
     const clientNow = Date.now();
 
-    return fetch(`/api/sensor_history?sensor=${series.sensor}`)
+    let url = `/api/sensor_history?sensor=${series.sensor}`;
+    // Once a prior preamble has told us when the device booted, translate the
+    // wall-clock window into the device-uptime startTime the firmware filters
+    // on so it sends only the slice we'll show.  On the very first fetch we
+    // have no anchor yet, so we pull the whole buffer and rely on the
+    // client-side trim below.
+    if (self.rangeSeconds && self._bootEpoch !== undefined) {
+      const startTime = Math.round(clientNow / 1000 - self._bootEpoch - self.rangeSeconds);
+      url += `&startTime=${startTime}`;
+    }
+
+    return fetch(url)
       .then(response => {
         if (!response.ok)
           throw new Error(`HTTP ${response.status}`);
@@ -423,6 +467,12 @@
 
         console.log(`${series.sensor} history size: ${count}`);
 
+        // remember the device boot time so the next fetch can ask the firmware
+        // to pre-filter, and trim anything older than the window here (covers
+        // the first fetch, before _bootEpoch is known, and any slack in it).
+        self._bootEpoch = clientNow / 1000 - uptime;
+        const minWall = self.rangeSeconds ? clientNow / 1000 - self.rangeSeconds : -Infinity;
+
         const data = self.data[series.sensor];
         data.t.length = 0;
         data.v.length = 0;
@@ -437,7 +487,11 @@
             continue;
 
           // uPlot's time scale wants seconds, so anchor to the browser clock in seconds
-          data.t.push(clientNow / 1000 - (uptime - time));
+          const wall = clientNow / 1000 - (uptime - time);
+          if (wall < minWall)
+            continue;
+
+          data.t.push(wall);
           data.v.push(self.smoothValue(series, series.convert(value)));
         }
       });

@@ -83,6 +83,10 @@ void BrineomaticController::loop()
 // (uint32 uptime seconds + float32 value, little-endian), streamed in small
 // stack-buffered chunks.  Timestamps are device uptime; the preamble carries
 // the current uptime so the browser can anchor them to wall-clock time.
+//
+// Optional startTime/endTime query params (also device-uptime seconds) clip the
+// dump to a window so the browser can pull just the last few hours instead of
+// the whole buffer.
 esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* request, PsychicResponse* response)
 {
   String sensor = request->getParam("sensor", "");
@@ -90,8 +94,50 @@ esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* requ
   if (idx < 0)
     return response->send(400, "text/plain", "Unknown or missing sensor parameter.");
 
+  // Optional time window, in the same device-uptime seconds the points carry.
+  // Return points with startTime <= time <= endTime; an unset bound is open, so
+  // no params at all returns the full buffer.
+  String startStr = request->getParam("startTime", "");
+  String endStr = request->getParam("endTime", "");
+  bool hasStart = startStr.length() > 0;
+  bool hasEnd = endStr.length() > 0;
+  uint32_t startTime = strtoul(startStr.c_str(), nullptr, 10);
+  uint32_t endTime = strtoul(endStr.c_str(), nullptr, 10);
+
   // snapshot the count up front; points added mid-transfer wait for next fetch
   size_t count = wm.history.count(idx);
+
+  // Points are stored oldest-to-newest with monotonically increasing
+  // timestamps, so an in-range filter selects one contiguous block
+  // [firstIdx, firstIdx + rangeCount).  Scan once to locate it; without a
+  // window this is the whole buffer.
+  size_t firstIdx = 0;
+  size_t rangeCount = count;
+  if (hasStart || hasEnd) {
+    SensorHistoryPoint scan[64];
+    bool foundFirst = false;
+    bool done = false;
+    rangeCount = 0;
+    for (size_t start = 0; start < count && !done; start += 64) {
+      size_t n = wm.history.copy(idx, start, scan, 64);
+      if (n == 0)
+        break;
+      for (size_t j = 0; j < n; j++) {
+        uint32_t t = scan[j].time;
+        if (hasStart && t < startTime)
+          continue; // before the window; keep scanning
+        if (hasEnd && t > endTime) {
+          done = true; // past the window; ordering guarantees nothing more matches
+          break;
+        }
+        if (!foundFirst) {
+          firstIdx = start + j;
+          foundFirst = true;
+        }
+        rangeCount++;
+      }
+    }
+  }
 
   struct __attribute__((packed)) {
       uint32_t magic;
@@ -99,7 +145,7 @@ esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* requ
       uint16_t pointSize;
       uint32_t uptime; // device uptime in seconds, for timestamp anchoring
       uint32_t count;
-  } preamble = {0x484D4F42 /* "BOMH" */, 1, sizeof(SensorHistoryPoint), millis() / 1000, (uint32_t)count};
+  } preamble = {0x484D4F42 /* "BOMH" */, 1, sizeof(SensorHistoryPoint), millis() / 1000, (uint32_t)rangeCount};
 
   response->setCode(200);
   response->setContentType("application/octet-stream");
@@ -109,11 +155,15 @@ esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* requ
   if (err != ESP_OK)
     return err;
 
-  // iterate the circular buffer logically (oldest to newest) through a small
+  // iterate the selected range logically (oldest to newest) through a small
   // stack buffer; 64 points = 512 byte chunks on the wire.
   SensorHistoryPoint points[64];
-  for (size_t start = 0; start < count; start += 64) {
-    size_t n = wm.history.copy(idx, start, points, 64);
+  for (size_t s = 0; s < rangeCount; s += 64) {
+    size_t want = rangeCount - s;
+    if (want > 64)
+      want = 64;
+
+    size_t n = wm.history.copy(idx, firstIdx + s, points, want);
     if (n == 0)
       break;
 
