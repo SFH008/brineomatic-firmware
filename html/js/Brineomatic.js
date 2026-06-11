@@ -669,7 +669,6 @@
 
       // each series carries its own x column since sensors sample independently
       let xs = {};
-      let columns = [];
       for (let s of tab.series) {
         if (!s.enabled)
           continue;
@@ -679,7 +678,6 @@
           v: [s.label]
         };
         xs[s.label] = `x_${s.sensor}`;
-        columns.push(this.graphData[s.sensor].x, this.graphData[s.sensor].v);
       }
 
       this.graphCharts[tab.key] = c3.generate({
@@ -687,7 +685,7 @@
         size: { height: this.GRAPH_HEIGHT },
         data: {
           xs: xs,
-          columns: columns,
+          columns: this.graphColumnsFor(tab),
           type: 'line'
         },
         axis: {
@@ -827,18 +825,31 @@
     return next;
   };
 
-  Brineomatic.prototype.refreshGraph = function (tab) {
-    if (!this.graphCharts || !this.graphCharts[tab.key])
-      return;
-
+  // Build the c3 column set for a tab.  c3's timeseries axis chokes on a series
+  // with no data points: extent([]) is [undefined, undefined], which renders the
+  // x axis as transform="translate(NaN, 0)" and spams "Failed to parse x" errors
+  // from parseDate.  So any empty series gets a 2-point placeholder with null
+  // values — enough to give the axis a real x domain while drawing nothing.
+  Brineomatic.prototype.graphColumnsFor = function (tab) {
+    const now = Date.now();
     let columns = [];
     for (let s of tab.series) {
       if (!s.enabled)
         continue;
-      columns.push(this.graphData[s.sensor].x, this.graphData[s.sensor].v);
+      const data = this.graphData[s.sensor];
+      if (data.x.length > 1)
+        columns.push(data.x, data.v);
+      else
+        columns.push([data.x[0], now - 60000, now], [data.v[0], null, null]);
     }
+    return columns;
+  };
 
-    this.graphCharts[tab.key].load({ columns: columns });
+  Brineomatic.prototype.refreshGraph = function (tab) {
+    if (!this.graphCharts || !this.graphCharts[tab.key])
+      return;
+
+    this.graphCharts[tab.key].load({ columns: this.graphColumnsFor(tab) });
   };
 
   // Append realtime values from an update message to the graph data, matching
