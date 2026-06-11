@@ -44,7 +44,6 @@
         axisLabel: `Pressure (${bom.getShortPressureUnits(cfg.pressure_units)})`,
         unit: bom.getShortPressureUnits(cfg.pressure_units),
         decimals: 1,
-        min: 0,
         series: [
           { sensor: 'filter_pressure', label: 'Filter Pressure', enabled: !!cfg.has_filter_pressure_sensor, convert: v => bom.convertPressure(v, "Bar", cfg.pressure_units) },
           { sensor: 'membrane_pressure', label: 'Membrane Pressure', enabled: !!cfg.has_membrane_pressure_sensor, convert: v => bom.convertPressure(v, "Bar", cfg.pressure_units) },
@@ -56,7 +55,6 @@
         axisLabel: 'Salinity (PPM)',
         unit: 'PPM',
         decimals: 0,
-        min: 0,
         series: [
           { sensor: 'product_salinity', label: 'Product Salinity', enabled: !!cfg.has_product_tds_sensor, convert: v => v },
           { sensor: 'brine_salinity', label: 'Brine Salinity', enabled: !!cfg.has_brine_tds_sensor, convert: v => v },
@@ -68,7 +66,6 @@
         axisLabel: `Flowrate (${bom.getShortFlowrateUnits(cfg.flowrate_units)})`,
         unit: bom.getShortFlowrateUnits(cfg.flowrate_units),
         decimals: 1,
-        min: 0,
         series: [
           { sensor: 'product_flowrate', label: 'Product Flowrate', enabled: !!cfg.has_product_flow_sensor, convert: v => bom.convertFlowrate(v, "lph", cfg.flowrate_units) },
           { sensor: 'brine_flowrate', label: 'Brine Flowrate', enabled: !!cfg.has_brine_flow_sensor, convert: v => bom.convertFlowrate(v, "lph", cfg.flowrate_units) },
@@ -91,8 +88,6 @@
         axisLabel: 'Tank Level (%)',
         unit: '%',
         decimals: 0,
-        min: 0,
-        max: 100,
         series: [
           { sensor: 'tank_level', label: 'Tank Level', enabled: hasTankLevel, skipNegative: true, convert: v => v * 100 },
         ]
@@ -103,8 +98,6 @@
         axisLabel: 'Battery Level (%)',
         unit: '%',
         decimals: 0,
-        min: 0,
-        max: 100,
         series: [
           { sensor: 'battery_level', label: 'Battery Level', enabled: hasBatteryLevel, skipNegative: true, convert: v => v * 100 },
         ]
@@ -115,10 +108,24 @@
     // series inherit its tab's display precision so values can be rounded as
     // they're stored (a steady-state reading then graphs as a flat line
     // instead of jittering in the noise below the displayed precision).
+    //
+    // The y-axis range is pulled from the gauges (YB.bom.gaugeSetup) so the
+    // graphs and the home-page gauges share a single source of truth.  Both
+    // store their ranges in the same display units the series plot in, so the
+    // gauge bounds drop straight onto each series.  The range is carried
+    // per-series (not aggregated onto the tab) so the y-axis can be re-spanned
+    // from just the series the user currently has shown — see create().
+    const gauges = (this.bom && this.bom.gaugeSetup) || {};
     for (let tab of this.setup) {
       tab.enabled = tab.series.some(s => s.enabled);
-      for (let s of tab.series)
+      for (let s of tab.series) {
         s.decimals = tab.decimals;
+        const g = gauges[s.sensor];
+        if (g && g.min !== undefined) {
+          s.min = g.min;
+          s.max = g.max;
+        }
+      }
     }
   };
 
@@ -220,15 +227,29 @@
         scales: {
           x: { time: true },
           y: {
+            // Span the y-axis across only the series the user currently has
+            // shown (uPlot toggles series.show when their legend label is
+            // clicked), so hiding the high-range line lets the low-range one
+            // fill the chart.  Each series carries its gauge range; the widest
+            // of the shown series wins, matching the gauge bounds.  uPlot's
+            // first series entry is the x axis, so enabled[i] is u.series[i+1].
             range: function (u, dataMin, dataMax) {
+              let cMin, cMax;
+              for (let i = 0; i < enabled.length; i++) {
+                const us = u.series[i + 1];
+                if (us && us.show && enabled[i].min !== undefined) {
+                  cMin = (cMin === undefined) ? enabled[i].min : Math.min(cMin, enabled[i].min);
+                  cMax = (cMax === undefined) ? enabled[i].max : Math.max(cMax, enabled[i].max);
+                }
+              }
               if (dataMin == null || dataMax == null)
-                return [tab.min !== undefined ? tab.min : 0, tab.max !== undefined ? tab.max : 1];
+                return [cMin !== undefined ? cMin : 0, cMax !== undefined ? cMax : 1];
               let min = dataMin, max = dataMax;
               const pad = (max - min) * 0.1 || Math.abs(max) * 0.1 || 1;
               min -= pad;
               max += pad;
-              if (tab.min !== undefined) min = tab.min;
-              if (tab.max !== undefined) max = tab.max;
+              if (cMin !== undefined) min = cMin;
+              if (cMax !== undefined) max = cMax;
               return [min, max];
             }
           }

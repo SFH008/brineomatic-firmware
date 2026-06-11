@@ -97,6 +97,8 @@
 
     this.gaugeSetup = {
       "motor_temperature": {
+        get min() { return Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units)); },
+        get max() { return Math.round(YB.bom.convertTemperature(80, "C", YB.config.brineomatic.temperature_units)); },
         get thresholds() {
           const celsiusThresholds = [60, 70, 100];
           return celsiusThresholds.map(temp => YB.bom.convertTemperature(temp, "C", YB.config.brineomatic.temperature_units));
@@ -104,6 +106,8 @@
         "colors": [bootstrapColors.success, bootstrapColors.warning, bootstrapColors.danger]
       },
       "water_temperature": {
+        get min() { return Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units)); },
+        get max() { return Math.round(YB.bom.convertTemperature(50, "C", YB.config.brineomatic.temperature_units)); },
         get thresholds() {
           const celsiusThresholds = [10, 30, 40, 50];
           return celsiusThresholds.map(temp => YB.bom.convertTemperature(temp, "C", YB.config.brineomatic.temperature_units));
@@ -111,6 +115,8 @@
         "colors": [bootstrapColors.primary, bootstrapColors.success, bootstrapColors.warning, bootstrapColors.danger]
       },
       "filter_pressure": {
+        get min() { return Math.round(YB.bom.convertPressure(0, "Bar", YB.config.brineomatic.pressure_units)); },
+        get max() { return Math.round(YB.bom.convertPressure(3.45, "Bar", YB.config.brineomatic.pressure_units)); },
         get thresholds() {
           const barThresholds = [0, 0.34, 0.69, 2.76, 3.10, 3.45];
           return barThresholds.map(pressure => YB.bom.convertPressure(pressure, "Bar", YB.config.brineomatic.pressure_units));
@@ -118,6 +124,8 @@
         "colors": [bootstrapColors.secondary, bootstrapColors.danger, bootstrapColors.warning, bootstrapColors.success, bootstrapColors.warning, bootstrapColors.danger]
       },
       "membrane_pressure": {
+        get min() { return Math.round(YB.bom.convertPressure(0, "Bar", YB.config.brineomatic.pressure_units)); },
+        get max() { return Math.round(YB.bom.convertPressure(69.0, "Bar", YB.config.brineomatic.pressure_units)); },
         get thresholds() {
           const barThresholds = [0, 41.4, 48.3, 62.1, 69.0];
           return barThresholds.map(pressure => YB.bom.convertPressure(pressure, "Bar", YB.config.brineomatic.pressure_units));
@@ -125,14 +133,20 @@
         "colors": [bootstrapColors.secondary, bootstrapColors.warning, bootstrapColors.primary, bootstrapColors.success, bootstrapColors.danger]
       },
       "product_salinity": {
-        "thresholds": [1, 300, 400, 1500],
+        "min": 0,
+        "max": 1250,
+        "thresholds": [1, 300, 400, 1250],
         "colors": [bootstrapColors.secondary, bootstrapColors.success, bootstrapColors.warning, bootstrapColors.danger]
       },
       "brine_salinity": {
-        "thresholds": [1, 750, 1500],
+        "min": 0,
+        "max": 1250,
+        "thresholds": [1, 750, 1250],
         "colors": [bootstrapColors.secondary, bootstrapColors.primary, bootstrapColors.success]
       },
       "product_flowrate": {
+        get min() { return Math.round(YB.bom.convertFlowrate(0, "lph", YB.config.brineomatic.flowrate_units)); },
+        get max() { return Math.round(YB.bom.convertFlowrate(250, "lph", YB.config.brineomatic.flowrate_units)); },
         get thresholds() {
           const lphThresholds = [20, 100, 180, 200, 250];
           return lphThresholds.map(flowrate => YB.bom.convertFlowrate(flowrate, "lph", YB.config.brineomatic.flowrate_units));
@@ -140,6 +154,8 @@
         "colors": [bootstrapColors.secondary, bootstrapColors.warning, bootstrapColors.success, bootstrapColors.warning, bootstrapColors.danger]
       },
       "brine_flowrate": {
+        get min() { return Math.round(YB.bom.convertFlowrate(0, "lph", YB.config.brineomatic.flowrate_units)); },
+        get max() { return Math.round(YB.bom.convertFlowrate(600, "lph", YB.config.brineomatic.flowrate_units)); },
         get thresholds() {
           const lphThresholds = [100, 300];
           return lphThresholds.map(flowrate => YB.bom.convertFlowrate(flowrate, "lph", YB.config.brineomatic.flowrate_units));
@@ -147,6 +163,8 @@
         "colors": [bootstrapColors.secondary, bootstrapColors.success]
       },
       "total_flowrate": {
+        get min() { return Math.round(YB.bom.convertFlowrate(0, "lph", YB.config.brineomatic.flowrate_units)); },
+        get max() { return Math.round(YB.bom.convertFlowrate(600, "lph", YB.config.brineomatic.flowrate_units)); },
         get thresholds() {
           const lphThresholds = [100, 600];
           return lphThresholds.map(flowrate => YB.bom.convertFlowrate(flowrate, "lph", YB.config.brineomatic.flowrate_units));
@@ -154,10 +172,14 @@
         "colors": [bootstrapColors.secondary, bootstrapColors.success]
       },
       "tank_level": {
+        "min": 0,
+        "max": 100,
         "thresholds": [10, 20, 100],
         "colors": [bootstrapColors.secondary, bootstrapColors.warning, bootstrapColors.success]
       },
       "battery_level": {
+        "min": 0,
+        "max": 100,
         "thresholds": [20, 40, 100],
         "colors": [bootstrapColors.secondary, bootstrapColors.warning, bootstrapColors.success]
       },
@@ -185,8 +207,8 @@
           },
           show: true
         },
-        min: Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units)),
-        max: Math.round(YB.bom.convertTemperature(80, "C", YB.config.brineomatic.temperature_units))
+        min: this.gaugeSetup.motor_temperature.min,
+        max: this.gaugeSetup.motor_temperature.max
       },
       color: {
         pattern: this.gaugeSetup.motor_temperature.colors,
@@ -217,8 +239,8 @@
           },
           show: true
         },
-        min: Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units)),
-        max: Math.round(YB.bom.convertTemperature(50, "C", YB.config.brineomatic.temperature_units))
+        min: this.gaugeSetup.water_temperature.min,
+        max: this.gaugeSetup.water_temperature.max
       },
       color: {
         pattern: this.gaugeSetup.water_temperature.colors,
@@ -249,8 +271,8 @@
           },
           show: true
         },
-        min: Math.round(YB.bom.convertPressure(0, "Bar", YB.config.brineomatic.pressure_units)),
-        max: Math.round(YB.bom.convertPressure(3.45, "Bar", YB.config.brineomatic.pressure_units)),
+        min: this.gaugeSetup.filter_pressure.min,
+        max: this.gaugeSetup.filter_pressure.max,
       },
       color: {
         pattern: this.gaugeSetup.filter_pressure.colors,
@@ -281,8 +303,8 @@
           },
           show: true
         },
-        min: Math.round(YB.bom.convertPressure(0, "Bar", YB.config.brineomatic.pressure_units)),
-        max: Math.round(YB.bom.convertPressure(69.0, "Bar", YB.config.brineomatic.pressure_units)),
+        min: this.gaugeSetup.membrane_pressure.min,
+        max: this.gaugeSetup.membrane_pressure.max,
       },
       color: {
         pattern: this.gaugeSetup.membrane_pressure.colors,
@@ -312,8 +334,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 1500,
+        min: this.gaugeSetup.product_salinity.min,
+        max: this.gaugeSetup.product_salinity.max,
       },
       color: {
         pattern: this.gaugeSetup.product_salinity.colors,
@@ -343,8 +365,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 1500,
+        min: this.gaugeSetup.brine_salinity.min,
+        max: this.gaugeSetup.brine_salinity.max,
       },
       color: {
         pattern: this.gaugeSetup.brine_salinity.colors,
@@ -375,8 +397,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 250,
+        min: this.gaugeSetup.product_flowrate.min,
+        max: this.gaugeSetup.product_flowrate.max,
       },
       color: {
         pattern: this.gaugeSetup.product_flowrate.colors,
@@ -407,8 +429,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 600,
+        min: this.gaugeSetup.brine_flowrate.min,
+        max: this.gaugeSetup.brine_flowrate.max,
       },
       color: {
         pattern: this.gaugeSetup.brine_flowrate.colors,
@@ -439,8 +461,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 600,
+        min: this.gaugeSetup.total_flowrate.min,
+        max: this.gaugeSetup.total_flowrate.max,
       },
       color: {
         pattern: this.gaugeSetup.total_flowrate.colors,
@@ -470,8 +492,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 100,
+        min: this.gaugeSetup.tank_level.min,
+        max: this.gaugeSetup.tank_level.max,
       },
       color: {
         pattern: this.gaugeSetup.tank_level.colors,
@@ -501,8 +523,8 @@
           },
           show: true
         },
-        min: 0,
-        max: 100,
+        min: this.gaugeSetup.battery_level.min,
+        max: this.gaugeSetup.battery_level.max,
       },
       color: {
         pattern: this.gaugeSetup.battery_level.colors,
