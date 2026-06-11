@@ -25,7 +25,7 @@
   }
 
   SensorGraphs.prototype.MAX_POINTS = 20000;
-  SensorGraphs.prototype.HEIGHT = 500;
+  SensorGraphs.prototype.HEIGHT = 400;
   SensorGraphs.prototype.COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'];
 
   SensorGraphs.prototype.buildSetup = function () {
