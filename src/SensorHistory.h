@@ -38,8 +38,8 @@ static_assert(sizeof(SensorHistoryPoint) == 8, "SensorHistoryPoint must pack to 
 class SensorHistory
 {
   public:
-    static constexpr size_t MAX_POINTS = 16384;
-    static constexpr uint32_t SAMPLE_INTERVAL_MS = 1000;
+    static constexpr size_t MAX_POINTS = 20000;
+    static constexpr uint32_t SAMPLE_INTERVAL_MS = (12 * 60 * 60 * 1000) / MAX_POINTS;
 
     using Buffer = etl::circular_buffer_ext<SensorHistoryPoint>;
 
@@ -87,20 +87,28 @@ class SensorHistory
       return -1;
     }
 
-    // Record a reading, rate-limited to one point per SAMPLE_INTERVAL_MS.
+    // Accumulate readings and record their average once per SAMPLE_INTERVAL_MS.
     void add(const char* sensor, float value)
     {
       int idx = indexOf(sensor);
       if (idx < 0 || !_buffers[idx])
         return;
 
+      // Fold every reading into the running average for this interval.
+      _total[idx] += value;
+      _count[idx]++;
+
       uint32_t now = millis();
       if (_lastSample[idx] != 0 && now - _lastSample[idx] < SAMPLE_INTERVAL_MS)
         return;
       _lastSample[idx] = now;
 
+      float average = _total[idx] / _count[idx];
+      _total[idx] = 0;
+      _count[idx] = 0;
+
       xSemaphoreTake(_mutex, portMAX_DELAY);
-      _buffers[idx]->push(SensorHistoryPoint{now / 1000, value});
+      _buffers[idx]->push(SensorHistoryPoint{now / 1000, average});
       xSemaphoreGive(_mutex);
     }
 
@@ -136,6 +144,8 @@ class SensorHistory
   private:
     SemaphoreHandle_t _mutex = NULL;
     uint32_t _lastSample[SENSOR_COUNT] = {0};
+    double _total[SENSOR_COUNT] = {0};
+    uint32_t _count[SENSOR_COUNT] = {0};
     Buffer* _buffers[SENSOR_COUNT] = {nullptr};
 };
 

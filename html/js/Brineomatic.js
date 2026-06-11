@@ -534,7 +534,7 @@
   // charts, history fetch, live updates) is generated from this table, so
   // sensors that aren't present on a given board simply drop out.
   //
-  Brineomatic.prototype.MAX_GRAPH_POINTS = 16384;
+  Brineomatic.prototype.MAX_GRAPH_POINTS = 20000;
   Brineomatic.prototype.GRAPH_HEIGHT = 500;
 
   Brineomatic.prototype.buildGraphSetup = function () {
@@ -547,17 +547,6 @@
     const hasBatteryLevel = cfg.battery_level_sensor_type && cfg.battery_level_sensor_type != "NONE";
 
     this.graphSetup = [
-      {
-        key: 'temperature',
-        label: 'Temperature',
-        axisLabel: `Temperature (°${this.getShortTemperatureUnits(cfg.temperature_units)})`,
-        unit: `°${this.getShortTemperatureUnits(cfg.temperature_units)}`,
-        decimals: 1,
-        series: [
-          { sensor: 'water_temperature', label: 'Water Temperature', enabled: hasWaterTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
-          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, smooth: 0.2, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
-        ]
-      },
       {
         key: 'pressure',
         label: 'Pressure',
@@ -592,6 +581,17 @@
         series: [
           { sensor: 'product_flowrate', label: 'Product Flowrate', enabled: !!cfg.has_product_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
           { sensor: 'brine_flowrate', label: 'Brine Flowrate', enabled: !!cfg.has_brine_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
+        ]
+      },
+      {
+        key: 'temperature',
+        label: 'Temperature',
+        axisLabel: `Temperature (°${this.getShortTemperatureUnits(cfg.temperature_units)})`,
+        unit: `°${this.getShortTemperatureUnits(cfg.temperature_units)}`,
+        decimals: 1,
+        series: [
+          { sensor: 'water_temperature', label: 'Water Temperature', enabled: hasWaterTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
+          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
         ]
       },
       {
@@ -881,7 +881,6 @@
         data.x.push(now);
         data.v.push(this.smoothValue(s, s.convert(value)));
 
-        // cap memory at the same depth as the firmware's buffers
         if (data.x.length > this.MAX_GRAPH_POINTS + 1) {
           data.x.splice(1, 1);
           data.v.splice(1, 1);
