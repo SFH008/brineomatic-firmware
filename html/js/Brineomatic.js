@@ -555,7 +555,7 @@
         decimals: 1,
         series: [
           { sensor: 'water_temperature', label: 'Water Temperature', enabled: hasWaterTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
-          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
+          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, smooth: 0.2, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
         ]
       },
       {
@@ -797,6 +797,7 @@
         const data = self.graphData[series.sensor];
         data.x.length = 1; // reset, keeping the c3 column headers
         data.v.length = 1;
+        data._ema = undefined; // restart smoothing from the freshly loaded history
 
         for (let i = 0; i < count; i++) {
           const offset = 16 + i * pointSize;
@@ -807,9 +808,23 @@
             continue;
 
           data.x.push(clientNow - (uptime - time) * 1000);
-          data.v.push(series.convert(value));
+          data.v.push(self.smoothValue(series, series.convert(value)));
         }
       });
+  };
+
+  // Exponential moving average for noisy series (e.g. motor temperature).
+  // series.smooth is the alpha (0..1): lower = smoother/laggier.  State lives
+  // on graphData[sensor] so the smoothed value carries from loaded history
+  // into live updates seamlessly.  No-op when the series has no smooth factor.
+  Brineomatic.prototype.smoothValue = function (series, value) {
+    if (!series.smooth)
+      return value;
+    const data = this.graphData[series.sensor];
+    const prev = data._ema;
+    const next = (prev === undefined) ? value : prev + series.smooth * (value - prev);
+    data._ema = next;
+    return next;
   };
 
   Brineomatic.prototype.refreshGraph = function (tab) {
@@ -853,7 +868,7 @@
           continue;
 
         data.x.push(now);
-        data.v.push(s.convert(value));
+        data.v.push(this.smoothValue(s, s.convert(value)));
 
         // cap memory at the same depth as the firmware's buffers
         if (data.x.length > this.MAX_GRAPH_POINTS + 1) {
