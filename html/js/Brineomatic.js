@@ -679,6 +679,7 @@
 
     this.graphCharts = {};
     this.graphData = {};
+    this.graphHistoryLoaded = {};
 
     const width = this.graphWidth();
 
@@ -791,6 +792,8 @@
       const key = e.target.id.replace('bomGraphTab-', '');
       if (self.graphCharts && self.graphCharts[key])
         self.graphCharts[key].setSize({ width: self.graphWidth(), height: self.GRAPH_HEIGHT });
+      // fetch this tab's history on first reveal (no-op if already loaded)
+      self.loadGraphHistory(self.graphSetup.find(tab => tab.key === key));
     });
 
     // keep the charts fitted to the window; setSize preserves the current
@@ -825,24 +828,38 @@
     }
 
     this.createGraphs();
-    this.loadGraphHistory();
+    this.loadGraphHistory(this.activeGraphTab());
     const width = this.graphWidth();
     for (let key in this.graphCharts)
       this.graphCharts[key].setSize({ width: width, height: this.GRAPH_HEIGHT });
   };
 
-  Brineomatic.prototype.loadGraphHistory = function () {
+  // Lazily fetch one tab's history the first time it's viewed.  Fetching every
+  // tab up front pulls a lot of binary blobs the user may never look at, so we
+  // only load the tab that's actually on screen and remember which we've done
+  // (graphHistoryLoaded) so switching back and forth doesn't refetch.
+  Brineomatic.prototype.loadGraphHistory = function (tab) {
     const self = this;
 
-    for (let tab of this.graphSetup) {
-      if (!tab.enabled)
-        continue;
+    if (!tab || !tab.enabled || this.graphHistoryLoaded[tab.key])
+      return;
 
-      const enabledSeries = tab.series.filter(s => s.enabled);
-      Promise.all(enabledSeries.map(s => self.fetchSensorHistory(s)))
-        .then(() => self.refreshGraph(tab))
-        .catch(err => YB.log(`sensor history load failed: ${err}`));
-    }
+    this.graphHistoryLoaded[tab.key] = true;
+
+    const enabledSeries = tab.series.filter(s => s.enabled);
+    Promise.all(enabledSeries.map(s => self.fetchSensorHistory(s)))
+      .then(() => self.refreshGraph(tab))
+      .catch(err => {
+        // let a failed load retry the next time the tab is shown
+        self.graphHistoryLoaded[tab.key] = false;
+        YB.log(`sensor history load failed: ${err}`);
+      });
+  };
+
+  // Find the tab whose pane is currently active (the one the user is viewing).
+  Brineomatic.prototype.activeGraphTab = function () {
+    return this.graphSetup.find(tab =>
+      tab.enabled && $(`#bomGraphPanel-${tab.key}`).hasClass('active'));
   };
 
   // Pull one sensor's history as a raw binary blob and unpack it into the
