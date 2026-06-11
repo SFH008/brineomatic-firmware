@@ -41,8 +41,14 @@ html[data-bs-theme="dark"] th[role=columnheader]:not([data-sort-method='none']):
 
 html[data-bs-theme="dark"] .c3 .c3-gauge-value,
 html[data-bs-theme="dark"] .c3 .c3-gauge-units,
-html[data-bs-theme="dark"] .c3 .c3-axis text {
+html[data-bs-theme="dark"] .c3 .c3-axis text,
+html[data-bs-theme="dark"] .c3 .c3-legend-item text {
     fill: var(--bs-body-color) !important;
+}
+
+html[data-bs-theme="dark"] .c3 .c3-axis path,
+html[data-bs-theme="dark"] .c3 .c3-axis line {
+    stroke: var(--bs-body-color) !important;
 }
 
 .btn-overheat {

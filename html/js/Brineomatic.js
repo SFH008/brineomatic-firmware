@@ -712,12 +712,14 @@
   Brineomatic.prototype.openGraphsPage = function () {
     const self = this;
 
-    //user might navigate away while we wait
-    if (YB.App.currentPage != "graphs")
-      return;
-
     if (!this.graphSetup || !$('#graphsPage').is(':visible')) {
-      setTimeout(() => self.openGraphsPage(), 100);
+      // retry until ready, but stop if the user navigates away.  the check
+      // lives inside the timeout because onOpen callbacks fire before
+      // App.currentPage has been updated to "graphs".
+      setTimeout(() => {
+        if (YB.App.currentPage == "graphs")
+          self.openGraphsPage();
+      }, 100);
       return;
     }
 
@@ -775,7 +777,7 @@
           const time = dv.getUint32(offset, true);
           const value = dv.getFloat32(offset + 4, true);
 
-          if (series.skipNegative && value < 0)
+          if (isNaN(value) || (series.skipNegative && value < 0))
             continue;
 
           data.x.push(clientNow - (uptime - time) * 1000);
