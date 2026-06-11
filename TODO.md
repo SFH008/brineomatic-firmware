@@ -2,7 +2,8 @@
 
 ## Graphs
 
-* Modify SensorHistory to use rolling average so that we get the average reading from the last 1s
+* only load historical data for the currently selected graph, not when we open the graphs page.
+* load new historical when we open a graphs tab
 
 ## Other
 

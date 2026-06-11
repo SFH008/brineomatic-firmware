@@ -39,7 +39,7 @@ class SensorHistory
 {
   public:
     static constexpr size_t MAX_POINTS = 20000;
-    static constexpr uint32_t SAMPLE_INTERVAL_MS = (12 * 60 * 60 * 1000) / MAX_POINTS;
+    static constexpr uint32_t SAMPLE_INTERVAL_MS = (6 * 60 * 60 * 1000) / MAX_POINTS;
 
     using Buffer = etl::circular_buffer_ext<SensorHistoryPoint>;
 
