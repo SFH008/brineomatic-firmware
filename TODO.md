@@ -2,6 +2,7 @@
 
 ## Graphs
 
+* x/y lines are too thick - 1px max
 * range for sensor graphs should match our gauge ranges too.
 * add a graph time range selector:
     * last 1...12 hours

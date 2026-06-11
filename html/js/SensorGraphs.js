@@ -132,10 +132,8 @@
         continue;
 
       tabs += `
-        <li class="nav-item" role="presentation">
-          <button class="nav-link${first ? ' active' : ''}" id="bomGraphTab-${tab.key}" data-bs-toggle="tab"
-            data-bs-target="#bomGraphPanel-${tab.key}" type="button" role="tab">${tab.label}</button>
-        </li>`;
+        <button class="btn ${first ? 'btn-primary active' : 'btn-secondary'} bomGraphTab" id="bomGraphTab-${tab.key}" data-bs-toggle="tab"
+          data-bs-target="#bomGraphPanel-${tab.key}" type="button" role="tab">${tab.label}</button>`;
 
       panes += `
         <div class="tab-pane${first ? ' active' : ''}" id="bomGraphPanel-${tab.key}" role="tabpanel" tabindex="0">
@@ -147,7 +145,7 @@
 
     return `
       <div id="bomGraphs" class="col-md-12">
-        <ul class="nav nav-pills" id="bomGraphsTabs" role="tablist">${tabs}</ul>
+        <div class="nav" id="bomGraphsTabs" role="tablist">${tabs}</div>
         <div class="tab-content">${panes}</div>
       </div>`;
   };
@@ -278,6 +276,11 @@
 
     // uPlot is created at zero width inside hidden tab panes; resize on reveal
     $('#bomGraphsTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+      // Bootstrap's tab plugin only toggles .active; recolour the pills so the
+      // selected one is primary and the rest fall back to secondary.
+      $('#bomGraphsTabs .bomGraphTab').removeClass('btn-primary').addClass('btn-secondary');
+      $(e.target).removeClass('btn-secondary').addClass('btn-primary');
+
       const key = e.target.id.replace('bomGraphTab-', '');
       if (self.charts && self.charts[key])
         self.charts[key].setSize({ width: self.width(), height: self.HEIGHT });
