@@ -57,6 +57,13 @@ html[data-bs-theme="dark"] .c3 .c3-axis line {
     stroke: var(--bs-body-color) !important;
 }
 
+/* uPlot graphs.  The axis tick/label text is painted onto the canvas (coloured
+   from --bs-body-color in createGraphs, not here), but the legend is real DOM,
+   so theme it like the rest of the UI. */
+.uplot .u-legend {
+    color: var(--bs-body-color);
+}
+
 .btn-overheat {
     --bs-btn-color: #fff;
     --bs-btn-bg: #fd7e14;

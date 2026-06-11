@@ -536,6 +536,7 @@
   //
   Brineomatic.prototype.MAX_GRAPH_POINTS = 20000;
   Brineomatic.prototype.GRAPH_HEIGHT = 500;
+  Brineomatic.prototype.GRAPH_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'];
 
   Brineomatic.prototype.buildGraphSetup = function () {
     const cfg = YB.config.brineomatic;
@@ -662,83 +663,153 @@
       </div>`;
   };
 
+  // uPlot needs an explicit pixel width.  All tab panes share the same width
+  // (the col-md-12 container), and that container is visible even while an
+  // individual pane is hidden, so measure it there instead of the pane.
+  Brineomatic.prototype.graphWidth = function () {
+    const el = document.getElementById('bomGraphs');
+    return (el && el.clientWidth) ? el.clientWidth : 800;
+  };
+
   Brineomatic.prototype.createGraphs = function () {
     if (this.graphCharts)
       return;
 
+    const self = this;
+
     this.graphCharts = {};
     this.graphData = {};
+
+    const width = this.graphWidth();
+
+    // uPlot draws axis labels/ticks/grid onto the canvas, so unlike c3's SVG
+    // text they can't be recoloured from CSS.  Pull the active Bootstrap theme
+    // colours (these flip with light/dark mode) and feed them to uPlot instead.
+    const css = getComputedStyle(document.documentElement);
+    const labelColor = css.getPropertyValue('--bs-body-color').trim() || '#000';
+    const gridColor = css.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,0.1)';
 
     for (let tab of this.graphSetup) {
       if (!tab.enabled)
         continue;
 
-      // each series carries its own x column since sensors sample independently
-      let xs = {};
-      for (let s of tab.series) {
-        if (!s.enabled)
-          continue;
+      // uPlot draws every series against one shared x axis, so the first
+      // series entry is the (empty) x config and the rest are the value
+      // series in the same order graphDataFor() emits their columns.
+      const series = [{}];
+      const enabled = tab.series.filter(s => s.enabled);
+      for (let i = 0; i < enabled.length; i++) {
+        const s = enabled[i];
 
-        this.graphData[s.sensor] = {
-          x: [`x_${s.sensor}`],
-          v: [s.label]
-        };
-        xs[s.label] = `x_${s.sensor}`;
+        this.graphData[s.sensor] = { t: [], v: [], _ema: undefined };
+
+        series.push({
+          label: s.label,
+          stroke: this.GRAPH_COLORS[i % this.GRAPH_COLORS.length],
+          width: 1.5,
+          // sensors sample independently, so a series only has values at its
+          // own timestamps and is null at the others — span those gaps so the
+          // line stays continuous instead of breaking at every other point.
+          spanGaps: true,
+          points: { show: false },
+          value: function (u, value) {
+            if (value === null || value === undefined || isNaN(value))
+              return '--';
+            const rounded = Number(value).toFixed(tab.decimals);
+            const sep = (tab.unit === '%') ? '' : ' ';
+            return tab.unit ? `${rounded}${sep}${tab.unit}` : rounded;
+          }
+        });
       }
 
-      this.graphCharts[tab.key] = c3.generate({
-        bindto: `#bomGraphChart-${tab.key}`,
-        size: { height: this.GRAPH_HEIGHT },
-        data: {
-          xs: xs,
-          columns: this.graphColumnsFor(tab),
-          type: 'line'
+      const opts = {
+        width: width,
+        height: this.GRAPH_HEIGHT,
+        series: series,
+        scales: {
+          x: { time: true },
+          y: {
+            range: function (u, dataMin, dataMax) {
+              if (dataMin == null || dataMax == null)
+                return [tab.min !== undefined ? tab.min : 0, tab.max !== undefined ? tab.max : 1];
+              let min = dataMin, max = dataMax;
+              const pad = (max - min) * 0.1 || Math.abs(max) * 0.1 || 1;
+              min -= pad;
+              max += pad;
+              if (tab.min !== undefined) min = tab.min;
+              if (tab.max !== undefined) max = tab.max;
+              return [min, max];
+            }
+          }
         },
-        axis: {
-          x: {
-            type: 'timeseries',
-            tick: {
-              format: '%H:%M:%S',
-              count: 8,
-              fit: false
+        axes: [
+          {
+            stroke: labelColor,
+            grid: { stroke: gridColor },
+            ticks: { stroke: gridColor },
+            values: function (u, splits) {
+              return splits.map(function (t) {
+                const d = new Date(t * 1000);
+                const p = n => String(n).padStart(2, '0');
+                return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+              });
             }
           },
-          y: {
-            label: { text: tab.axisLabel, position: 'outer-middle' },
-            min: tab.min,
-            max: tab.max,
-            padding: (tab.min !== undefined) ? { bottom: 0 } : undefined
+          {
+            label: tab.axisLabel,
+            stroke: labelColor,
+            grid: { stroke: gridColor },
+            ticks: { stroke: gridColor }
           }
-        },
-        tooltip: {
-          format: {
-            value: function (value) {
-              if (value === null || value === undefined || isNaN(value))
-                return value;
-              const rounded = Number(value).toFixed(tab.decimals);
-              const sep = (tab.unit === '%') ? '' : ' ';
-              return tab.unit ? `${rounded}${sep}${tab.unit}` : rounded;
+        ],
+        hooks: {
+          // Track whether the user has zoomed in.  A drag-select is uPlot's
+          // zoom gesture, so flag it; double-click is uPlot's reset-to-full,
+          // so clear it.  refreshGraph() uses this to avoid snapping the view
+          // back to the full range every time a live point arrives.
+          setSelect: [
+            function (u) {
+              if (u.select.width > 0)
+                u._userZoomed = true;
             }
-          }
-        },
-        point: { show: false },
-        transition: { duration: 0 }
-      });
+          ],
+          init: [
+            function (u) {
+              u.over.addEventListener('dblclick', function () {
+                u._userZoomed = false;
+              });
+            }
+          ]
+        }
+      };
+
+      this.graphCharts[tab.key] = new uPlot(opts, this.graphDataFor(tab), document.getElementById(`bomGraphChart-${tab.key}`));
     }
 
-    // c3 sizes charts wrong inside hidden tab panes; redraw on reveal
-    const self = this;
+    // uPlot is created at zero width inside hidden tab panes; resize on reveal
     $('#bomGraphsTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
       const key = e.target.id.replace('bomGraphTab-', '');
       if (self.graphCharts && self.graphCharts[key])
-        self.graphCharts[key].resize({ height: self.GRAPH_HEIGHT });
+        self.graphCharts[key].setSize({ width: self.graphWidth(), height: self.GRAPH_HEIGHT });
+    });
+
+    // keep the charts fitted to the window; setSize preserves the current
+    // zoom, and we debounce so a drag-resize doesn't redraw on every pixel
+    let resizeTimer;
+    $(window).on('resize.bomGraphs', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        const w = self.graphWidth();
+        for (let key in self.graphCharts)
+          self.graphCharts[key].setSize({ width: w, height: self.GRAPH_HEIGHT });
+      }, 150);
     });
   };
 
   // Called when the graphs page opens.  Config may not have arrived yet (the
   // page stays hidden until it's ready) and the container is only revealed
   // once the page is ready, so wait for both before creating the charts —
-  // c3 sizes them wrong inside a hidden container.
+  // uPlot needs a real container width to size itself.
   Brineomatic.prototype.openGraphsPage = function () {
     const self = this;
 
@@ -755,8 +826,9 @@
 
     this.createGraphs();
     this.loadGraphHistory();
+    const width = this.graphWidth();
     for (let key in this.graphCharts)
-      this.graphCharts[key].resize({ height: this.GRAPH_HEIGHT });
+      this.graphCharts[key].setSize({ width: width, height: this.GRAPH_HEIGHT });
   };
 
   Brineomatic.prototype.loadGraphHistory = function () {
@@ -798,9 +870,11 @@
         const uptime = dv.getUint32(8, true);
         const count = Math.min(dv.getUint32(12, true), Math.floor((buffer.byteLength - 16) / pointSize));
 
+        console.log(`${series.sensor} history size: ${count}`);
+
         const data = self.graphData[series.sensor];
-        data.x.length = 1; // reset, keeping the c3 column headers
-        data.v.length = 1;
+        data.t.length = 0;
+        data.v.length = 0;
         data._ema = undefined; // restart smoothing from the freshly loaded history
 
         for (let i = 0; i < count; i++) {
@@ -811,7 +885,8 @@
           if (isNaN(value) || (series.skipNegative && value < 0))
             continue;
 
-          data.x.push(clientNow - (uptime - time) * 1000);
+          // uPlot's time scale wants seconds, so anchor to the browser clock in seconds
+          data.t.push(clientNow / 1000 - (uptime - time));
           data.v.push(self.smoothValue(series, series.convert(value)));
         }
       });
@@ -834,31 +909,51 @@
     return (series.decimals === undefined) ? value : Number(value.toFixed(series.decimals));
   };
 
-  // Build the c3 column set for a tab.  c3's timeseries axis chokes on a series
-  // with no data points: extent([]) is [undefined, undefined], which renders the
-  // x axis as transform="translate(NaN, 0)" and spams "Failed to parse x" errors
-  // from parseDate.  So any empty series gets a 2-point placeholder with null
-  // values — enough to give the axis a real x domain while drawing nothing.
-  Brineomatic.prototype.graphColumnsFor = function (tab) {
-    const now = Date.now();
-    let columns = [];
-    for (let s of tab.series) {
-      if (!s.enabled)
-        continue;
-      const data = this.graphData[s.sensor];
-      if (data.x.length > 1)
-        columns.push(data.x, data.v);
-      else
-        columns.push([data.x[0], now - 60000, now], [data.v[0], null, null]);
+  // Build uPlot's aligned data array for a tab: [xs, valuesForSeries1, ...].
+  // uPlot plots all series against one shared x axis, but each sensor samples
+  // independently on its own timestamps, so we merge every enabled series'
+  // timestamps into a single sorted x array and fill each series' column with
+  // its value where it has a sample and null elsewhere (series.spanGaps keeps
+  // the lines continuous across those nulls).  An all-empty tab yields [[], []]
+  // — uPlot renders an empty plot without complaint.
+  Brineomatic.prototype.graphDataFor = function (tab) {
+    const list = tab.series.filter(s => s.enabled).map(s => this.graphData[s.sensor]);
+    const idx = list.map(() => 0);
+    const xs = [];
+    const cols = list.map(() => []);
+
+    for (; ;) {
+      let minT = Infinity;
+      for (let i = 0; i < list.length; i++)
+        if (idx[i] < list[i].t.length && list[i].t[idx[i]] < minT)
+          minT = list[i].t[idx[i]];
+
+      if (minT === Infinity)
+        break;
+
+      xs.push(minT);
+      for (let i = 0; i < list.length; i++) {
+        if (idx[i] < list[i].t.length && list[i].t[idx[i]] === minT) {
+          cols[i].push(list[i].v[idx[i]]);
+          idx[i]++;
+        } else {
+          cols[i].push(null);
+        }
+      }
     }
-    return columns;
+
+    return [xs, ...cols];
   };
 
   Brineomatic.prototype.refreshGraph = function (tab) {
-    if (!this.graphCharts || !this.graphCharts[tab.key])
+    const u = this.graphCharts && this.graphCharts[tab.key];
+    if (!u)
       return;
 
-    this.graphCharts[tab.key].load({ columns: this.graphColumnsFor(tab) });
+    // setData's second arg is resetScales: skip the auto-refit while the user
+    // is zoomed in so their view stays put as new points stream in.  When not
+    // zoomed we let it refit so the chart keeps following the latest data.
+    u.setData(this.graphDataFor(tab), !u._userZoomed);
   };
 
   // Append realtime values from an update message to the graph data, matching
@@ -867,7 +962,7 @@
     if (!this.graphCharts)
       return;
 
-    const now = Date.now();
+    const nowSec = Date.now() / 1000;
 
     for (let tab of this.graphSetup) {
       if (!tab.enabled)
@@ -883,16 +978,16 @@
           continue;
 
         const data = this.graphData[s.sensor];
-        const lastTime = data.x.length > 1 ? data.x[data.x.length - 1] : 0;
-        if (now - lastTime < 1000)
+        const lastTime = data.t.length ? data.t[data.t.length - 1] : 0;
+        if (nowSec - lastTime < 1)
           continue;
 
-        data.x.push(now);
+        data.t.push(nowSec);
         data.v.push(this.smoothValue(s, s.convert(value)));
 
-        if (data.x.length > this.MAX_GRAPH_POINTS + 1) {
-          data.x.splice(1, 1);
-          data.v.splice(1, 1);
+        if (data.t.length > this.MAX_GRAPH_POINTS) {
+          data.t.shift();
+          data.v.shift();
         }
         changed = true;
       }
