@@ -4,6 +4,7 @@
 
 * only load historical data for the currently selected graph, not when we open the graphs page.
 * load new historical when we open a graphs tab
+* range for sensor graphs should match our gauge ranges too.
 
 ## Other
 
