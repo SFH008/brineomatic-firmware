@@ -13,6 +13,7 @@
 
 #include "Flowmeter.h"
 #include "GD20Modbus.h"
+#include "SensorHistory.h"
 #include "SensorStatsTable.h"
 #include "adchelper.h"
 #include "brineomatic_config.h"
@@ -283,6 +284,7 @@ class Brineomatic
     float getMotorTemperatureMaximum();
 
     SensorStatsTable stats;
+    SensorHistory history;
 
     const char* getTemperatureUnits();
     const char* getPressureUnits();

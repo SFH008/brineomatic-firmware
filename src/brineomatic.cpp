@@ -88,6 +88,10 @@ void Brineomatic::init()
   currentMembranePressure = 0.0;
   currentMembranePressureTarget = -1;
 
+  // graph history buffers live in PSRAM
+  if (!history.init())
+    YBP.println("⚠️ Unable to allocate sensor history buffers in PSRAM.");
+
   // declare which sensors each cycle tracks
   stats.defineCycle("run", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
   stats.defineCycle("flush", {"water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure"});
@@ -864,6 +868,7 @@ void Brineomatic::setFilterPressure(float pressure)
 {
   currentFilterPressure = pressure;
   stats.add("filter_pressure", pressure);
+  history.add("filter_pressure", pressure);
 }
 
 float Brineomatic::getFilterPressureMinimum()
@@ -880,6 +885,7 @@ void Brineomatic::setMembranePressure(float pressure)
 {
   currentMembranePressure = pressure;
   stats.add("membrane_pressure", pressure);
+  history.add("membrane_pressure", pressure);
 }
 
 float Brineomatic::getMembranePressureMinimum()
@@ -896,6 +902,7 @@ void Brineomatic::setProductFlowrate(float flowrate)
 {
   currentProductFlowrate = flowrate;
   stats.add("product_flowrate", flowrate);
+  history.add("product_flowrate", flowrate);
 }
 
 float Brineomatic::getBrineFlowrate()
@@ -907,6 +914,7 @@ void Brineomatic::setBrineFlowrate(float flowrate)
 {
   currentBrineFlowrate = flowrate;
   stats.add("brine_flowrate", flowrate);
+  history.add("brine_flowrate", flowrate);
 }
 
 float Brineomatic::getProductFlowrateMinimum()
@@ -956,22 +964,26 @@ void Brineomatic::setWaterTemperature(float temp)
 {
   currentWaterTemperature = temp;
   stats.add("water_temperature", temp);
+  history.add("water_temperature", temp);
 }
 
 void Brineomatic::setTankLevel(float level)
 {
   currentTankLevel = level;
+  history.add("tank_level", level);
 }
 
 void Brineomatic::setBatteryLevel(float level)
 {
   currentBatteryLevel = level;
+  history.add("battery_level", level);
 }
 
 void Brineomatic::setMotorTemperature(float temp)
 {
   currentMotorTemperature = temp;
   stats.add("motor_temperature", temp);
+  history.add("motor_temperature", temp);
 }
 
 float Brineomatic::getMotorTemperature()
@@ -993,6 +1005,7 @@ void Brineomatic::setProductSalinity(float salinity)
 {
   currentProductSalinity = salinity;
   stats.add("product_salinity", salinity);
+  history.add("product_salinity", salinity);
 }
 
 float Brineomatic::getBrineSalinity()
@@ -1004,6 +1017,7 @@ void Brineomatic::setBrineSalinity(float salinity)
 {
   currentBrineSalinity = salinity;
   stats.add("brine_salinity", salinity);
+  history.add("brine_salinity", salinity);
 }
 
 float Brineomatic::getProductSalinityMaximum()

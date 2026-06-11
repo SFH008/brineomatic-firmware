@@ -35,6 +35,8 @@ class BrineomaticController : public BaseController
     bool setup() override;
     void loop() override;
 
+    esp_err_t handleSensorHistoryRequest(PsychicRequest* request, PsychicResponse* response);
+
     uint32_t getTotalRuntime() { return wm.getTotalRuntime(); }
 
     bool sanitizeConfigHook(JsonVariant config, char* error, size_t len) override;

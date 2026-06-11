@@ -33,8 +33,13 @@ bool BrineomaticController::setup()
   _instance = this; // Capture the instance for callbacks
 
   PsychicHttpServer* server = _app.http.getServer();
-  if (server)
+  if (server) {
     server->serveStatic("/run_log.json", LittleFS, "/run_log.json");
+
+    server->on("/api/sensor_history", HTTP_GET, [this](PsychicRequest* request, PsychicResponse* response) {
+      return handleSensorHistoryRequest(request, response);
+    });
+  }
 
   _app.protocol.registerCommand(GUEST, "start_watermaker", this, &BrineomaticController::handleStartWatermaker);
   _app.protocol.registerCommand(GUEST, "flush_watermaker", this, &BrineomaticController::handleFlushWatermaker);
@@ -70,6 +75,54 @@ bool BrineomaticController::setup()
 void BrineomaticController::loop()
 {
   wm.loop();
+}
+
+// Dump one sensor's history as a raw binary blob (application/octet-stream).
+// JSON would balloon 128KB of points into 500KB+ of text and exhaust SRAM, so
+// the format is a 16-byte preamble followed by tightly packed 8-byte points
+// (uint32 uptime seconds + float32 value, little-endian), streamed in small
+// stack-buffered chunks.  Timestamps are device uptime; the preamble carries
+// the current uptime so the browser can anchor them to wall-clock time.
+esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* request, PsychicResponse* response)
+{
+  String sensor = request->getParam("sensor", "");
+  int idx = wm.history.indexOf(sensor.c_str());
+  if (idx < 0)
+    return response->send(400, "text/plain", "Unknown or missing sensor parameter.");
+
+  // snapshot the count up front; points added mid-transfer wait for next fetch
+  size_t count = wm.history.count(idx);
+
+  struct __attribute__((packed)) {
+      uint32_t magic;
+      uint16_t version;
+      uint16_t pointSize;
+      uint32_t uptime; // device uptime in seconds, for timestamp anchoring
+      uint32_t count;
+  } preamble = {0x484D4F42 /* "BOMH" */, 1, sizeof(SensorHistoryPoint), millis() / 1000, (uint32_t)count};
+
+  response->setCode(200);
+  response->setContentType("application/octet-stream");
+  response->sendHeaders();
+
+  esp_err_t err = response->sendChunk((uint8_t*)&preamble, sizeof(preamble));
+  if (err != ESP_OK)
+    return err;
+
+  // iterate the circular buffer logically (oldest to newest) through a small
+  // stack buffer; 64 points = 512 byte chunks on the wire.
+  SensorHistoryPoint points[64];
+  for (size_t start = 0; start < count; start += 64) {
+    size_t n = wm.history.copy(idx, start, points, 64);
+    if (n == 0)
+      break;
+
+    err = response->sendChunk((uint8_t*)points, n * sizeof(SensorHistoryPoint));
+    if (err != ESP_OK)
+      return err; // sendChunk already aborted the response
+  }
+
+  return response->finishChunking();
 }
 
 void BrineomaticController::stateMachineTask(void* pvParameters)
@@ -2631,15 +2684,15 @@ void BrineomaticController::loadHardwareConfigJSON(JsonVariantConst config)
   String legacyFlushMode = config["autoflush_mode"] | defaults.postRunFlushMode;
 
   _config.postRunFlushMode = config["post_run_flush_mode"] | legacyFlushMode;
-  _config.postRunFlushSalinity = config["post_run_flush_salinity"] | (float) (config["autoflush_salinity"] | defaults.postRunFlushSalinity);
-  _config.postRunFlushDuration = config["post_run_flush_duration"] | (uint32_t) (config["autoflush_duration"] | defaults.postRunFlushDuration);
-  _config.postRunFlushVolume = config["post_run_flush_volume"] | (float) (config["autoflush_volume"] | defaults.postRunFlushVolume);
+  _config.postRunFlushSalinity = config["post_run_flush_salinity"] | (float)(config["autoflush_salinity"] | defaults.postRunFlushSalinity);
+  _config.postRunFlushDuration = config["post_run_flush_duration"] | (uint32_t)(config["autoflush_duration"] | defaults.postRunFlushDuration);
+  _config.postRunFlushVolume = config["post_run_flush_volume"] | (float)(config["autoflush_volume"] | defaults.postRunFlushVolume);
 
   String scheduledLegacyMode = legacyFlushMode.equals("SALINITY") ? String(defaults.scheduledFlushMode) : legacyFlushMode;
   _config.scheduledFlushMode = config["scheduled_flush_mode"] | scheduledLegacyMode;
-  _config.scheduledFlushDuration = config["scheduled_flush_duration"] | (uint32_t) (config["autoflush_duration"] | defaults.scheduledFlushDuration);
-  _config.scheduledFlushVolume = config["scheduled_flush_volume"] | (float) (config["autoflush_volume"] | defaults.scheduledFlushVolume);
-  _config.scheduledFlushInterval = config["scheduled_flush_interval"] | (uint32_t) (config["autoflush_interval"] | defaults.scheduledFlushInterval);
+  _config.scheduledFlushDuration = config["scheduled_flush_duration"] | (uint32_t)(config["autoflush_duration"] | defaults.scheduledFlushDuration);
+  _config.scheduledFlushVolume = config["scheduled_flush_volume"] | (float)(config["autoflush_volume"] | defaults.scheduledFlushVolume);
+  _config.scheduledFlushInterval = config["scheduled_flush_interval"] | (uint32_t)(config["autoflush_interval"] | defaults.scheduledFlushInterval);
 
   _config.autoflushUseHighPressureMotor = config["autoflush_use_high_pressure_motor"] | defaults.autoflushUseHighPressureMotor;
 

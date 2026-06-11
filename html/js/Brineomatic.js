@@ -525,6 +525,322 @@
     this.batteryLevelData = ['Battery Level'];
   }
 
+  //
+  // Graphs page: historical + live sensor data.
+  //
+  // Each entry in graphSetup describes one tab: which sensors it plots, how
+  // to convert their raw firmware values (always metric) into the user's
+  // display units, and the y-axis labelling.  Everything downstream (HTML,
+  // charts, history fetch, live updates) is generated from this table, so
+  // sensors that aren't present on a given board simply drop out.
+  //
+  Brineomatic.prototype.MAX_GRAPH_POINTS = 16384;
+
+  Brineomatic.prototype.buildGraphSetup = function () {
+    const cfg = YB.config.brineomatic;
+    const self = this;
+
+    const hasMotorTemp = cfg.motor_temperature_sensor_type && cfg.motor_temperature_sensor_type != "NONE";
+    const hasWaterTemp = cfg.water_temperature_sensor_type && cfg.water_temperature_sensor_type != "NONE";
+    const hasTankLevel = cfg.tank_level_sensor_type && cfg.tank_level_sensor_type != "NONE";
+    const hasBatteryLevel = cfg.battery_level_sensor_type && cfg.battery_level_sensor_type != "NONE";
+
+    this.graphSetup = [
+      {
+        key: 'temperature',
+        label: 'Temperature',
+        axisLabel: `Temperature (°${this.getShortTemperatureUnits(cfg.temperature_units)})`,
+        series: [
+          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
+          { sensor: 'water_temperature', label: 'Water Temperature', enabled: hasWaterTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
+        ]
+      },
+      {
+        key: 'pressure',
+        label: 'Pressure',
+        axisLabel: `Pressure (${this.getShortPressureUnits(cfg.pressure_units)})`,
+        min: 0,
+        series: [
+          { sensor: 'filter_pressure', label: 'Filter Pressure', enabled: !!cfg.has_filter_pressure_sensor, convert: v => self.convertPressure(v, "Bar", cfg.pressure_units) },
+          { sensor: 'membrane_pressure', label: 'Membrane Pressure', enabled: !!cfg.has_membrane_pressure_sensor, convert: v => self.convertPressure(v, "Bar", cfg.pressure_units) },
+        ]
+      },
+      {
+        key: 'salinity',
+        label: 'Salinity',
+        axisLabel: 'Salinity (PPM)',
+        min: 0,
+        series: [
+          { sensor: 'product_salinity', label: 'Product Salinity', enabled: !!cfg.has_product_tds_sensor, convert: v => v },
+          { sensor: 'brine_salinity', label: 'Brine Salinity', enabled: !!cfg.has_brine_tds_sensor, convert: v => v },
+        ]
+      },
+      {
+        key: 'flowrate',
+        label: 'Flowrate',
+        axisLabel: `Flowrate (${this.getShortFlowrateUnits(cfg.flowrate_units)})`,
+        min: 0,
+        series: [
+          { sensor: 'product_flowrate', label: 'Product Flowrate', enabled: !!cfg.has_product_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
+          { sensor: 'brine_flowrate', label: 'Brine Flowrate', enabled: !!cfg.has_brine_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
+        ]
+      },
+      {
+        key: 'tankLevel',
+        label: 'Tank Level',
+        axisLabel: 'Tank Level (%)',
+        min: 0,
+        max: 100,
+        series: [
+          { sensor: 'tank_level', label: 'Tank Level', enabled: hasTankLevel, skipNegative: true, convert: v => v * 100 },
+        ]
+      },
+      {
+        key: 'batteryLevel',
+        label: 'Battery',
+        axisLabel: 'Battery Level (%)',
+        min: 0,
+        max: 100,
+        series: [
+          { sensor: 'battery_level', label: 'Battery Level', enabled: hasBatteryLevel, skipNegative: true, convert: v => v * 100 },
+        ]
+      },
+    ];
+
+    // only show tabs that have at least one available sensor
+    for (let tab of this.graphSetup)
+      tab.enabled = tab.series.some(s => s.enabled);
+  };
+
+  Brineomatic.prototype.generateGraphsUI = function () {
+    let tabs = '';
+    let panes = '';
+    let first = true;
+
+    for (let tab of this.graphSetup) {
+      if (!tab.enabled)
+        continue;
+
+      tabs += `
+        <li class="nav-item" role="presentation">
+          <button class="nav-link${first ? ' active' : ''}" id="bomGraphTab-${tab.key}" data-bs-toggle="tab"
+            data-bs-target="#bomGraphPanel-${tab.key}" type="button" role="tab">${tab.label}</button>
+        </li>`;
+
+      panes += `
+        <div class="tab-pane${first ? ' active' : ''}" id="bomGraphPanel-${tab.key}" role="tabpanel" tabindex="0">
+          <div id="bomGraphChart-${tab.key}" class="mt-3"></div>
+        </div>`;
+
+      first = false;
+    }
+
+    return `
+      <div id="bomGraphs" class="col-md-12">
+        <h3>Graphs</h3>
+        <ul class="nav nav-tabs" id="bomGraphsTabs" role="tablist">${tabs}</ul>
+        <div class="tab-content">${panes}</div>
+      </div>`;
+  };
+
+  Brineomatic.prototype.createGraphs = function () {
+    if (this.graphCharts)
+      return;
+
+    this.graphCharts = {};
+    this.graphData = {};
+
+    for (let tab of this.graphSetup) {
+      if (!tab.enabled)
+        continue;
+
+      // each series carries its own x column since sensors sample independently
+      let xs = {};
+      let columns = [];
+      for (let s of tab.series) {
+        if (!s.enabled)
+          continue;
+
+        this.graphData[s.sensor] = {
+          x: [`x_${s.sensor}`],
+          v: [s.label]
+        };
+        xs[s.label] = `x_${s.sensor}`;
+        columns.push(this.graphData[s.sensor].x, this.graphData[s.sensor].v);
+      }
+
+      this.graphCharts[tab.key] = c3.generate({
+        bindto: `#bomGraphChart-${tab.key}`,
+        data: {
+          xs: xs,
+          columns: columns,
+          type: 'line'
+        },
+        axis: {
+          x: {
+            type: 'timeseries',
+            tick: {
+              format: '%H:%M:%S',
+              culling: { max: 8 }
+            }
+          },
+          y: {
+            label: { text: tab.axisLabel, position: 'outer-middle' },
+            min: tab.min,
+            max: tab.max,
+            padding: (tab.min !== undefined) ? { bottom: 0 } : undefined
+          }
+        },
+        point: { show: false },
+        transition: { duration: 0 }
+      });
+    }
+
+    // c3 sizes charts wrong inside hidden tab panes; redraw on reveal
+    const self = this;
+    $('#bomGraphsTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+      const key = e.target.id.replace('bomGraphTab-', '');
+      if (self.graphCharts && self.graphCharts[key])
+        self.graphCharts[key].resize();
+    });
+  };
+
+  // Called when the graphs page opens.  Config may not have arrived yet (the
+  // page stays hidden until it's ready) and the container is only revealed
+  // once the page is ready, so wait for both before creating the charts —
+  // c3 sizes them wrong inside a hidden container.
+  Brineomatic.prototype.openGraphsPage = function () {
+    const self = this;
+
+    //user might navigate away while we wait
+    if (YB.App.currentPage != "graphs")
+      return;
+
+    if (!this.graphSetup || !$('#graphsPage').is(':visible')) {
+      setTimeout(() => self.openGraphsPage(), 100);
+      return;
+    }
+
+    this.createGraphs();
+    this.loadGraphHistory();
+    for (let key in this.graphCharts)
+      this.graphCharts[key].resize();
+  };
+
+  Brineomatic.prototype.loadGraphHistory = function () {
+    const self = this;
+
+    for (let tab of this.graphSetup) {
+      if (!tab.enabled)
+        continue;
+
+      const enabledSeries = tab.series.filter(s => s.enabled);
+      Promise.all(enabledSeries.map(s => self.fetchSensorHistory(s)))
+        .then(() => self.refreshGraph(tab))
+        .catch(err => YB.log(`sensor history load failed: ${err}`));
+    }
+  };
+
+  // Pull one sensor's history as a raw binary blob and unpack it into the
+  // series' data arrays.  Format: 16-byte preamble (magic "BOMH", version,
+  // point size, device uptime seconds, point count) followed by packed
+  // 8-byte points of uint32 uptime seconds + float32 value, little-endian.
+  // Timestamps are device uptime, so we anchor them to the browser clock:
+  // wall time = now - (device uptime now - point uptime).
+  Brineomatic.prototype.fetchSensorHistory = function (series) {
+    const self = this;
+    const clientNow = Date.now();
+
+    return fetch(`/api/sensor_history?sensor=${series.sensor}`)
+      .then(response => {
+        if (!response.ok)
+          throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then(buffer => {
+        const dv = new DataView(buffer);
+        if (buffer.byteLength < 16 || dv.getUint32(0, true) != 0x484D4F42)
+          throw new Error(`bad history preamble for ${series.sensor}`);
+
+        const pointSize = dv.getUint16(6, true);
+        const uptime = dv.getUint32(8, true);
+        const count = Math.min(dv.getUint32(12, true), Math.floor((buffer.byteLength - 16) / pointSize));
+
+        const data = self.graphData[series.sensor];
+        data.x.length = 1; // reset, keeping the c3 column headers
+        data.v.length = 1;
+
+        for (let i = 0; i < count; i++) {
+          const offset = 16 + i * pointSize;
+          const time = dv.getUint32(offset, true);
+          const value = dv.getFloat32(offset + 4, true);
+
+          if (series.skipNegative && value < 0)
+            continue;
+
+          data.x.push(clientNow - (uptime - time) * 1000);
+          data.v.push(series.convert(value));
+        }
+      });
+  };
+
+  Brineomatic.prototype.refreshGraph = function (tab) {
+    if (!this.graphCharts || !this.graphCharts[tab.key])
+      return;
+
+    let columns = [];
+    for (let s of tab.series) {
+      if (!s.enabled)
+        continue;
+      columns.push(this.graphData[s.sensor].x, this.graphData[s.sensor].v);
+    }
+
+    this.graphCharts[tab.key].load({ columns: columns });
+  };
+
+  // Append realtime values from an update message to the graph data, matching
+  // the firmware's 1Hz sample rate, and redraw the chart the user is viewing.
+  Brineomatic.prototype.updateGraphs = function (msg) {
+    if (!this.graphCharts)
+      return;
+
+    const now = Date.now();
+
+    for (let tab of this.graphSetup) {
+      if (!tab.enabled)
+        continue;
+
+      let changed = false;
+      for (let s of tab.series) {
+        if (!s.enabled || msg[s.sensor] === undefined)
+          continue;
+
+        const value = parseFloat(msg[s.sensor]);
+        if (isNaN(value) || (s.skipNegative && value < 0))
+          continue;
+
+        const data = this.graphData[s.sensor];
+        const lastTime = data.x.length > 1 ? data.x[data.x.length - 1] : 0;
+        if (now - lastTime < 1000)
+          continue;
+
+        data.x.push(now);
+        data.v.push(s.convert(value));
+
+        // cap memory at the same depth as the firmware's buffers
+        if (data.x.length > this.MAX_GRAPH_POINTS + 1) {
+          data.x.splice(1, 1);
+          data.v.splice(1, 1);
+        }
+        changed = true;
+      }
+
+      // only redraw the graph the user is actually looking at
+      if (changed && YB.App.currentPage == "graphs" && $(`#bomGraphPanel-${tab.key}`).hasClass('active'))
+        this.refreshGraph(tab);
+    }
+  };
+
   Brineomatic.prototype.handleConfigMessage = function (msg) {
     //build our UI
     YB.App.getPage("home").setContent(this.generateControlUI());
@@ -633,6 +949,19 @@
       this.createGauges();
     }
 
+    //graphs page
+    this.buildGraphSetup();
+    let graphsPage = YB.App.getPage("graphs");
+    if (graphsPage) {
+      graphsPage.setContent(this.generateGraphsUI());
+      graphsPage.ready = true;
+    }
+
+    //content was rebuilt, so any existing charts must be recreated
+    this.graphCharts = null;
+    if (YB.App.currentPage == "graphs")
+      this.openGraphsPage();
+
     if (msg.config.brineomatic.gauge_order) {
       const savedOrder = JSON.parse(msg.config.brineomatic.gauge_order);
       this.gaugeOrder = savedOrder;
@@ -659,6 +988,9 @@
   Brineomatic.prototype.handleUpdateMessage = function (msg) {
     if (!YB.config.brineomatic)
       return;
+
+    //feed the realtime graphs
+    this.updateGraphs(msg);
 
     let motor_temperature = YB.bom.convertTemperature(msg.motor_temperature, "C", YB.config.brineomatic.temperature_units);
     motor_temperature = this.formatReadable(motor_temperature);
@@ -6249,6 +6581,26 @@
   logsPage.onOpen(Brineomatic.loadRunLog);
 
   YB.App.addPage(logsPage);
+
+  // Graphs page: historical + live sensor data
+  let graphsPage = new YB.Page({
+    name: 'graphs',
+    displayName: 'Graphs',
+    permissionLevel: 'guest',
+    showInNavbar: true,
+    position: "home",
+    ready: false,
+    content: ""
+  });
+
+  // live data for the graphs comes from the update poller
+  graphsPage.onOpen(function () {
+    YB.App.startUpdatePoller();
+    YB.bom.openGraphsPage();
+  });
+  graphsPage.onClose(YB.App.stopUpdatePoller);
+
+  YB.App.addPage(graphsPage);
 
   //get totalRuntime
   YB.App.onStart(function () {
