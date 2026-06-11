@@ -85,6 +85,10 @@
     this.gaugeEditMode = false;
     this.sortableGauges = null;
     this.sortableGaugesMFD = null;
+
+    // owns the graphs page; created lazily once the first config arrives
+    // (SensorGraphs.js may load after this file, so we can't build it here).
+    this.graphs = null;
   }
 
   Brineomatic.prototype.buildGaugeSetup = function () {
@@ -525,496 +529,6 @@
     this.batteryLevelData = ['Battery Level'];
   }
 
-  //
-  // Graphs page: historical + live sensor data.
-  //
-  // Each entry in graphSetup describes one tab: which sensors it plots, how
-  // to convert their raw firmware values (always metric) into the user's
-  // display units, and the y-axis labelling.  Everything downstream (HTML,
-  // charts, history fetch, live updates) is generated from this table, so
-  // sensors that aren't present on a given board simply drop out.
-  //
-  Brineomatic.prototype.MAX_GRAPH_POINTS = 20000;
-  Brineomatic.prototype.GRAPH_HEIGHT = 500;
-  Brineomatic.prototype.GRAPH_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'];
-
-  Brineomatic.prototype.buildGraphSetup = function () {
-    const cfg = YB.config.brineomatic;
-    const self = this;
-
-    const hasMotorTemp = cfg.motor_temperature_sensor_type && cfg.motor_temperature_sensor_type != "NONE";
-    const hasWaterTemp = cfg.water_temperature_sensor_type && cfg.water_temperature_sensor_type != "NONE";
-    const hasTankLevel = cfg.tank_level_sensor_type && cfg.tank_level_sensor_type != "NONE";
-    const hasBatteryLevel = cfg.battery_level_sensor_type && cfg.battery_level_sensor_type != "NONE";
-
-    this.graphSetup = [
-      {
-        key: 'pressure',
-        label: 'Pressure',
-        axisLabel: `Pressure (${this.getShortPressureUnits(cfg.pressure_units)})`,
-        unit: this.getShortPressureUnits(cfg.pressure_units),
-        decimals: 1,
-        min: 0,
-        series: [
-          { sensor: 'filter_pressure', label: 'Filter Pressure', enabled: !!cfg.has_filter_pressure_sensor, convert: v => self.convertPressure(v, "Bar", cfg.pressure_units) },
-          { sensor: 'membrane_pressure', label: 'Membrane Pressure', enabled: !!cfg.has_membrane_pressure_sensor, convert: v => self.convertPressure(v, "Bar", cfg.pressure_units) },
-        ]
-      },
-      {
-        key: 'salinity',
-        label: 'Salinity',
-        axisLabel: 'Salinity (PPM)',
-        unit: 'PPM',
-        decimals: 0,
-        min: 0,
-        series: [
-          { sensor: 'product_salinity', label: 'Product Salinity', enabled: !!cfg.has_product_tds_sensor, convert: v => v },
-          { sensor: 'brine_salinity', label: 'Brine Salinity', enabled: !!cfg.has_brine_tds_sensor, convert: v => v },
-        ]
-      },
-      {
-        key: 'flowrate',
-        label: 'Flowrate',
-        axisLabel: `Flowrate (${this.getShortFlowrateUnits(cfg.flowrate_units)})`,
-        unit: this.getShortFlowrateUnits(cfg.flowrate_units),
-        decimals: 1,
-        min: 0,
-        series: [
-          { sensor: 'product_flowrate', label: 'Product Flowrate', enabled: !!cfg.has_product_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
-          { sensor: 'brine_flowrate', label: 'Brine Flowrate', enabled: !!cfg.has_brine_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
-        ]
-      },
-      {
-        key: 'temperature',
-        label: 'Temperature',
-        axisLabel: `Temperature (°${this.getShortTemperatureUnits(cfg.temperature_units)})`,
-        unit: `°${this.getShortTemperatureUnits(cfg.temperature_units)}`,
-        decimals: 1,
-        series: [
-          { sensor: 'water_temperature', label: 'Water Temperature', enabled: hasWaterTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
-          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
-        ]
-      },
-      {
-        key: 'tankLevel',
-        label: 'Tank Level',
-        axisLabel: 'Tank Level (%)',
-        unit: '%',
-        decimals: 0,
-        min: 0,
-        max: 100,
-        series: [
-          { sensor: 'tank_level', label: 'Tank Level', enabled: hasTankLevel, skipNegative: true, convert: v => v * 100 },
-        ]
-      },
-      {
-        key: 'batteryLevel',
-        label: 'Battery',
-        axisLabel: 'Battery Level (%)',
-        unit: '%',
-        decimals: 0,
-        min: 0,
-        max: 100,
-        series: [
-          { sensor: 'battery_level', label: 'Battery Level', enabled: hasBatteryLevel, skipNegative: true, convert: v => v * 100 },
-        ]
-      },
-    ];
-
-    // only show tabs that have at least one available sensor, and let each
-    // series inherit its tab's display precision so values can be rounded as
-    // they're stored (a steady-state reading then graphs as a flat line
-    // instead of jittering in the noise below the displayed precision).
-    for (let tab of this.graphSetup) {
-      tab.enabled = tab.series.some(s => s.enabled);
-      for (let s of tab.series)
-        s.decimals = tab.decimals;
-    }
-  };
-
-  Brineomatic.prototype.generateGraphsUI = function () {
-    let tabs = '';
-    let panes = '';
-    let first = true;
-
-    for (let tab of this.graphSetup) {
-      if (!tab.enabled)
-        continue;
-
-      tabs += `
-        <li class="nav-item" role="presentation">
-          <button class="nav-link${first ? ' active' : ''}" id="bomGraphTab-${tab.key}" data-bs-toggle="tab"
-            data-bs-target="#bomGraphPanel-${tab.key}" type="button" role="tab">${tab.label}</button>
-        </li>`;
-
-      panes += `
-        <div class="tab-pane${first ? ' active' : ''}" id="bomGraphPanel-${tab.key}" role="tabpanel" tabindex="0">
-          <div id="bomGraphChart-${tab.key}" class="mt-3"></div>
-        </div>`;
-
-      first = false;
-    }
-
-    return `
-      <div id="bomGraphs" class="col-md-12">
-        <h3>Graphs</h3>
-        <ul class="nav nav-pills" id="bomGraphsTabs" role="tablist">${tabs}</ul>
-        <div class="tab-content">${panes}</div>
-      </div>`;
-  };
-
-  // uPlot needs an explicit pixel width.  All tab panes share the same width
-  // (the col-md-12 container), and that container is visible even while an
-  // individual pane is hidden, so measure it there instead of the pane.
-  Brineomatic.prototype.graphWidth = function () {
-    const el = document.getElementById('bomGraphs');
-    return (el && el.clientWidth) ? el.clientWidth : 800;
-  };
-
-  Brineomatic.prototype.createGraphs = function () {
-    if (this.graphCharts)
-      return;
-
-    const self = this;
-
-    this.graphCharts = {};
-    this.graphData = {};
-    this.graphHistoryLoaded = {};
-
-    const width = this.graphWidth();
-
-    // uPlot draws axis labels/ticks/grid onto the canvas, so unlike c3's SVG
-    // text they can't be recoloured from CSS.  Pull the active Bootstrap theme
-    // colours (these flip with light/dark mode) and feed them to uPlot instead.
-    const css = getComputedStyle(document.documentElement);
-    const labelColor = css.getPropertyValue('--bs-body-color').trim() || '#000';
-    const gridColor = css.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,0.1)';
-
-    for (let tab of this.graphSetup) {
-      if (!tab.enabled)
-        continue;
-
-      // uPlot draws every series against one shared x axis, so the first
-      // series entry is the (empty) x config and the rest are the value
-      // series in the same order graphDataFor() emits their columns.
-      const series = [{}];
-      const enabled = tab.series.filter(s => s.enabled);
-      for (let i = 0; i < enabled.length; i++) {
-        const s = enabled[i];
-
-        this.graphData[s.sensor] = { t: [], v: [], _ema: undefined };
-
-        series.push({
-          label: s.label,
-          stroke: this.GRAPH_COLORS[i % this.GRAPH_COLORS.length],
-          width: 1.5,
-          // sensors sample independently, so a series only has values at its
-          // own timestamps and is null at the others — span those gaps so the
-          // line stays continuous instead of breaking at every other point.
-          spanGaps: true,
-          points: { show: false },
-          value: function (u, value) {
-            if (value === null || value === undefined || isNaN(value))
-              return '--';
-            const rounded = Number(value).toFixed(tab.decimals);
-            const sep = (tab.unit === '%') ? '' : ' ';
-            return tab.unit ? `${rounded}${sep}${tab.unit}` : rounded;
-          }
-        });
-      }
-
-      const opts = {
-        width: width,
-        height: this.GRAPH_HEIGHT,
-        series: series,
-        scales: {
-          x: { time: true },
-          y: {
-            range: function (u, dataMin, dataMax) {
-              if (dataMin == null || dataMax == null)
-                return [tab.min !== undefined ? tab.min : 0, tab.max !== undefined ? tab.max : 1];
-              let min = dataMin, max = dataMax;
-              const pad = (max - min) * 0.1 || Math.abs(max) * 0.1 || 1;
-              min -= pad;
-              max += pad;
-              if (tab.min !== undefined) min = tab.min;
-              if (tab.max !== undefined) max = tab.max;
-              return [min, max];
-            }
-          }
-        },
-        axes: [
-          {
-            stroke: labelColor,
-            grid: { stroke: gridColor },
-            ticks: { stroke: gridColor },
-            values: function (u, splits) {
-              return splits.map(function (t) {
-                const d = new Date(t * 1000);
-                const p = n => String(n).padStart(2, '0');
-                return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-              });
-            }
-          },
-          {
-            label: tab.axisLabel,
-            stroke: labelColor,
-            grid: { stroke: gridColor },
-            ticks: { stroke: gridColor }
-          }
-        ],
-        hooks: {
-          // Track whether the user has zoomed in.  A drag-select is uPlot's
-          // zoom gesture, so flag it; double-click is uPlot's reset-to-full,
-          // so clear it.  refreshGraph() uses this to avoid snapping the view
-          // back to the full range every time a live point arrives.
-          setSelect: [
-            function (u) {
-              if (u.select.width > 0)
-                u._userZoomed = true;
-            }
-          ],
-          init: [
-            function (u) {
-              u.over.addEventListener('dblclick', function () {
-                u._userZoomed = false;
-              });
-            }
-          ]
-        }
-      };
-
-      this.graphCharts[tab.key] = new uPlot(opts, this.graphDataFor(tab), document.getElementById(`bomGraphChart-${tab.key}`));
-    }
-
-    // uPlot is created at zero width inside hidden tab panes; resize on reveal
-    $('#bomGraphsTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
-      const key = e.target.id.replace('bomGraphTab-', '');
-      if (self.graphCharts && self.graphCharts[key])
-        self.graphCharts[key].setSize({ width: self.graphWidth(), height: self.GRAPH_HEIGHT });
-      // fetch this tab's history on first reveal (no-op if already loaded)
-      self.loadGraphHistory(self.graphSetup.find(tab => tab.key === key));
-    });
-
-    // keep the charts fitted to the window; setSize preserves the current
-    // zoom, and we debounce so a drag-resize doesn't redraw on every pixel
-    let resizeTimer;
-    $(window).on('resize.bomGraphs', function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        const w = self.graphWidth();
-        for (let key in self.graphCharts)
-          self.graphCharts[key].setSize({ width: w, height: self.GRAPH_HEIGHT });
-      }, 150);
-    });
-  };
-
-  // Called when the graphs page opens.  Config may not have arrived yet (the
-  // page stays hidden until it's ready) and the container is only revealed
-  // once the page is ready, so wait for both before creating the charts —
-  // uPlot needs a real container width to size itself.
-  Brineomatic.prototype.openGraphsPage = function () {
-    const self = this;
-
-    if (!this.graphSetup || !$('#graphsPage').is(':visible')) {
-      // retry until ready, but stop if the user navigates away.  the check
-      // lives inside the timeout because onOpen callbacks fire before
-      // App.currentPage has been updated to "graphs".
-      setTimeout(() => {
-        if (YB.App.currentPage == "graphs")
-          self.openGraphsPage();
-      }, 100);
-      return;
-    }
-
-    this.createGraphs();
-    this.loadGraphHistory(this.activeGraphTab());
-    const width = this.graphWidth();
-    for (let key in this.graphCharts)
-      this.graphCharts[key].setSize({ width: width, height: this.GRAPH_HEIGHT });
-  };
-
-  // Lazily fetch one tab's history the first time it's viewed.  Fetching every
-  // tab up front pulls a lot of binary blobs the user may never look at, so we
-  // only load the tab that's actually on screen and remember which we've done
-  // (graphHistoryLoaded) so switching back and forth doesn't refetch.
-  Brineomatic.prototype.loadGraphHistory = function (tab) {
-    const self = this;
-
-    if (!tab || !tab.enabled || this.graphHistoryLoaded[tab.key])
-      return;
-
-    this.graphHistoryLoaded[tab.key] = true;
-
-    const enabledSeries = tab.series.filter(s => s.enabled);
-    Promise.all(enabledSeries.map(s => self.fetchSensorHistory(s)))
-      .then(() => self.refreshGraph(tab))
-      .catch(err => {
-        // let a failed load retry the next time the tab is shown
-        self.graphHistoryLoaded[tab.key] = false;
-        YB.log(`sensor history load failed: ${err}`);
-      });
-  };
-
-  // Find the tab whose pane is currently active (the one the user is viewing).
-  Brineomatic.prototype.activeGraphTab = function () {
-    return this.graphSetup.find(tab =>
-      tab.enabled && $(`#bomGraphPanel-${tab.key}`).hasClass('active'));
-  };
-
-  // Pull one sensor's history as a raw binary blob and unpack it into the
-  // series' data arrays.  Format: 16-byte preamble (magic "BOMH", version,
-  // point size, device uptime seconds, point count) followed by packed
-  // 8-byte points of uint32 uptime seconds + float32 value, little-endian.
-  // Timestamps are device uptime, so we anchor them to the browser clock:
-  // wall time = now - (device uptime now - point uptime).
-  Brineomatic.prototype.fetchSensorHistory = function (series) {
-    const self = this;
-    const clientNow = Date.now();
-
-    return fetch(`/api/sensor_history?sensor=${series.sensor}`)
-      .then(response => {
-        if (!response.ok)
-          throw new Error(`HTTP ${response.status}`);
-        return response.arrayBuffer();
-      })
-      .then(buffer => {
-        const dv = new DataView(buffer);
-        if (buffer.byteLength < 16 || dv.getUint32(0, true) != 0x484D4F42)
-          throw new Error(`bad history preamble for ${series.sensor}`);
-
-        const pointSize = dv.getUint16(6, true);
-        const uptime = dv.getUint32(8, true);
-        const count = Math.min(dv.getUint32(12, true), Math.floor((buffer.byteLength - 16) / pointSize));
-
-        console.log(`${series.sensor} history size: ${count}`);
-
-        const data = self.graphData[series.sensor];
-        data.t.length = 0;
-        data.v.length = 0;
-        data._ema = undefined; // restart smoothing from the freshly loaded history
-
-        for (let i = 0; i < count; i++) {
-          const offset = 16 + i * pointSize;
-          const time = dv.getUint32(offset, true);
-          const value = dv.getFloat32(offset + 4, true);
-
-          if (isNaN(value) || (series.skipNegative && value < 0))
-            continue;
-
-          // uPlot's time scale wants seconds, so anchor to the browser clock in seconds
-          data.t.push(clientNow / 1000 - (uptime - time));
-          data.v.push(self.smoothValue(series, series.convert(value)));
-        }
-      });
-  };
-
-  // Smooth (optionally) and round an incoming value before it's stored.
-  //
-  // series.smooth is the EMA alpha (0..1): lower = smoother/laggier.  The EMA
-  // state lives on graphData[sensor] so the smoothed value carries from loaded
-  // history into live updates seamlessly; we keep it at full precision and only
-  // round the returned (stored/plotted) value to series.decimals so a steady
-  // reading graphs as a flat line instead of jittering in sub-display noise.
-  Brineomatic.prototype.smoothValue = function (series, value) {
-    if (series.smooth) {
-      const data = this.graphData[series.sensor];
-      const prev = data._ema;
-      value = (prev === undefined) ? value : prev + series.smooth * (value - prev);
-      data._ema = value;
-    }
-    return (series.decimals === undefined) ? value : Number(value.toFixed(series.decimals));
-  };
-
-  // Build uPlot's aligned data array for a tab: [xs, valuesForSeries1, ...].
-  // uPlot plots all series against one shared x axis, but each sensor samples
-  // independently on its own timestamps, so we merge every enabled series'
-  // timestamps into a single sorted x array and fill each series' column with
-  // its value where it has a sample and null elsewhere (series.spanGaps keeps
-  // the lines continuous across those nulls).  An all-empty tab yields [[], []]
-  // — uPlot renders an empty plot without complaint.
-  Brineomatic.prototype.graphDataFor = function (tab) {
-    const list = tab.series.filter(s => s.enabled).map(s => this.graphData[s.sensor]);
-    const idx = list.map(() => 0);
-    const xs = [];
-    const cols = list.map(() => []);
-
-    for (; ;) {
-      let minT = Infinity;
-      for (let i = 0; i < list.length; i++)
-        if (idx[i] < list[i].t.length && list[i].t[idx[i]] < minT)
-          minT = list[i].t[idx[i]];
-
-      if (minT === Infinity)
-        break;
-
-      xs.push(minT);
-      for (let i = 0; i < list.length; i++) {
-        if (idx[i] < list[i].t.length && list[i].t[idx[i]] === minT) {
-          cols[i].push(list[i].v[idx[i]]);
-          idx[i]++;
-        } else {
-          cols[i].push(null);
-        }
-      }
-    }
-
-    return [xs, ...cols];
-  };
-
-  Brineomatic.prototype.refreshGraph = function (tab) {
-    const u = this.graphCharts && this.graphCharts[tab.key];
-    if (!u)
-      return;
-
-    // setData's second arg is resetScales: skip the auto-refit while the user
-    // is zoomed in so their view stays put as new points stream in.  When not
-    // zoomed we let it refit so the chart keeps following the latest data.
-    u.setData(this.graphDataFor(tab), !u._userZoomed);
-  };
-
-  // Append realtime values from an update message to the graph data, matching
-  // the firmware's 1Hz sample rate, and redraw the chart the user is viewing.
-  Brineomatic.prototype.updateGraphs = function (msg) {
-    if (!this.graphCharts)
-      return;
-
-    const nowSec = Date.now() / 1000;
-
-    for (let tab of this.graphSetup) {
-      if (!tab.enabled)
-        continue;
-
-      let changed = false;
-      for (let s of tab.series) {
-        if (!s.enabled || msg[s.sensor] === undefined)
-          continue;
-
-        const value = parseFloat(msg[s.sensor]);
-        if (isNaN(value) || (s.skipNegative && value < 0))
-          continue;
-
-        const data = this.graphData[s.sensor];
-        const lastTime = data.t.length ? data.t[data.t.length - 1] : 0;
-        if (nowSec - lastTime < 1)
-          continue;
-
-        data.t.push(nowSec);
-        data.v.push(this.smoothValue(s, s.convert(value)));
-
-        if (data.t.length > this.MAX_GRAPH_POINTS) {
-          data.t.shift();
-          data.v.shift();
-        }
-        changed = true;
-      }
-
-      // only redraw the graph the user is actually looking at
-      if (changed && YB.App.currentPage == "graphs" && $(`#bomGraphPanel-${tab.key}`).hasClass('active'))
-        this.refreshGraph(tab);
-    }
-  };
-
   Brineomatic.prototype.handleConfigMessage = function (msg) {
     //build our UI
     YB.App.getPage("home").setContent(this.generateControlUI());
@@ -1123,18 +637,22 @@
       this.createGauges();
     }
 
-    //graphs page
-    this.buildGraphSetup();
-    let graphsPage = YB.App.getPage("graphs");
-    if (graphsPage) {
-      graphsPage.setContent(this.generateGraphsUI());
-      graphsPage.ready = true;
-    }
+    //graphs page - non MFD only
+    if (!YB.App.isMFD()) {
+      if (!this.graphs)
+        this.graphs = new YB.SensorGraphs(this);
+      this.graphs.buildSetup();
+      let graphsPage = YB.App.getPage("graphs");
+      if (graphsPage) {
+        graphsPage.setContent(this.graphs.generateUI());
+        graphsPage.ready = true;
+      }
 
-    //content was rebuilt, so any existing charts must be recreated
-    this.graphCharts = null;
-    if (YB.App.currentPage == "graphs")
-      this.openGraphsPage();
+      //content was rebuilt, so any existing charts must be recreated
+      this.graphs.charts = null;
+      if (YB.App.currentPage == "graphs")
+        this.graphs.open();
+    }
 
     if (msg.config.brineomatic.gauge_order) {
       const savedOrder = JSON.parse(msg.config.brineomatic.gauge_order);
@@ -1164,7 +682,8 @@
       return;
 
     //feed the realtime graphs
-    this.updateGraphs(msg);
+    if (this.graphs)
+      this.graphs.update(msg);
 
     let motor_temperature = YB.bom.convertTemperature(msg.motor_temperature, "C", YB.config.brineomatic.temperature_units);
     motor_temperature = this.formatReadable(motor_temperature);
@@ -6770,7 +6289,10 @@
   // live data for the graphs comes from the update poller
   graphsPage.onOpen(function () {
     YB.App.startUpdatePoller();
-    YB.bom.openGraphsPage();
+    // graphs is null until the first config message builds it; handleConfigMessage
+    // opens the page itself once config arrives while we're on it.
+    if (YB.bom.graphs)
+      YB.bom.graphs.open();
   });
   graphsPage.onClose(YB.App.stopUpdatePoller);
 
