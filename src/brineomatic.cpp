@@ -1004,8 +1004,11 @@ float Brineomatic::getProductSalinity()
 void Brineomatic::setProductSalinity(float salinity)
 {
   currentProductSalinity = salinity;
-  stats.add("product_salinity", salinity);
-  history.add("product_salinity", salinity);
+
+  if (salinity > 0) {
+    stats.add("product_salinity", salinity);
+    history.add("product_salinity", salinity);
+  }
 }
 
 float Brineomatic::getBrineSalinity()
@@ -1016,8 +1019,11 @@ float Brineomatic::getBrineSalinity()
 void Brineomatic::setBrineSalinity(float salinity)
 {
   currentBrineSalinity = salinity;
-  stats.add("brine_salinity", salinity);
-  history.add("brine_salinity", salinity);
+
+  if (salinity > 0) {
+    stats.add("brine_salinity", salinity);
+    history.add("brine_salinity", salinity);
+  }
 }
 
 float Brineomatic::getProductSalinityMaximum()
