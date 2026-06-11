@@ -171,11 +171,14 @@
     const width = this.width();
 
     // uPlot draws axis labels/ticks/grid onto the canvas, so unlike c3's SVG
-    // text they can't be recoloured from CSS.  Pull the active Bootstrap theme
-    // colours (these flip with light/dark mode) and feed them to uPlot instead.
-    const css = getComputedStyle(document.documentElement);
-    const labelColor = css.getPropertyValue('--bs-body-color').trim() || '#000';
-    const gridColor = css.getPropertyValue('--bs-border-color').trim() || 'rgba(0,0,0,0.1)';
+    // text they can't be recoloured from CSS.  The label/tick text colour flips
+    // with light/dark mode, so we read it live into this._labelColor and hand
+    // uPlot a function (re-evaluated on every redraw) rather than a fixed value;
+    // the MutationObserver at the end of create() repaints when the theme flips.
+    this.refreshThemeColor();
+    // A translucent grey reads as a faint gridline on both the light and dark
+    // theme backgrounds; --bs-border-color renders too dark/strong in light mode.
+    const gridColor = 'rgba(128,128,128,0.25)';
 
     for (let tab of this.setup) {
       if (!tab.enabled)
@@ -232,9 +235,9 @@
         },
         axes: [
           {
-            stroke: labelColor,
-            grid: { stroke: gridColor },
-            ticks: { stroke: gridColor },
+            stroke: () => self._labelColor,
+            grid: { stroke: gridColor, width: 1 },
+            ticks: { stroke: gridColor, width: 1 },
             values: function (u, splits) {
               return splits.map(function (t) {
                 const d = new Date(t * 1000);
@@ -245,9 +248,9 @@
           },
           {
             label: tab.axisLabel,
-            stroke: labelColor,
-            grid: { stroke: gridColor },
-            ticks: { stroke: gridColor }
+            stroke: () => self._labelColor,
+            grid: { stroke: gridColor, width: 1 },
+            ticks: { stroke: gridColor, width: 1 }
           }
         ],
         hooks: {
@@ -299,6 +302,24 @@
           self.charts[key].setSize({ width: w, height: self.HEIGHT });
       }, 150);
     });
+
+    // The theme toggle flips data-bs-theme on <html>, which swaps the CSS
+    // colour variables but doesn't notify uPlot.  Watch that attribute, re-read
+    // the label colour, and redraw so the axis text recolours immediately.
+    this._themeObserver = new MutationObserver(function () {
+      self.refreshThemeColor();
+      for (let key in self.charts)
+        self.charts[key].redraw(false, true);
+    });
+    this._themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+  };
+
+  // Read the active theme's body colour (flips with light/dark mode) for use as
+  // the axis label/tick text colour.  Stored on the instance so the stroke
+  // functions handed to uPlot pick up the current value on every redraw.
+  SensorGraphs.prototype.refreshThemeColor = function () {
+    const css = getComputedStyle(document.documentElement);
+    this._labelColor = css.getPropertyValue('--bs-body-color').trim() || '#000';
   };
 
   // Called when the graphs page opens.  Config may not have arrived yet (the

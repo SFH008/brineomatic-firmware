@@ -58,15 +58,14 @@ html[data-bs-theme="dark"] .c3 .c3-axis line {
 }
 
 /* Graphs page tab nav: equal-width pills that gracefully wrap onto multiple
-   rows on narrow screens.  Bootstrap's .nav already gives us flex + flex-wrap,
-   so we just add a gap and let every pill grow to share its row's width
-   equally, falling to the next row once each would shrink below ~140px. */
+   rows on narrow screens.  A grid (rather than flex) keeps every pill the same
+   width across all rows — flex grows each row independently, so a lone pill on
+   the last row would stretch full-width.  auto-fit packs as many ~140px columns
+   as fit, then wraps the rest into matching columns on the next row. */
 #bomGraphsTabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 0.5rem;
-}
-
-#bomGraphsTabs .bomGraphTab {
-    flex: 1 1 140px;
 }
 
 #bomGraphsTabs .bomGraphTab:hover {
