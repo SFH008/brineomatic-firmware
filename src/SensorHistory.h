@@ -4,6 +4,7 @@
 #include "etl/circular_buffer.h"
 #include <Arduino.h>
 #include <esp_heap_caps.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -22,7 +23,9 @@
 // sensor, so a full buffer covers ~4.5 hours.  Timestamps are device uptime
 // rather than epoch so the data stays coherent without NTP; the HTTP handler
 // reports the current uptime alongside the dump so the browser can anchor
-// the series to wall-clock time.
+// the series to wall-clock time.  Uptime comes from esp_timer_get_time()
+// (64-bit microseconds) rather than millis(), whose 32-bit millisecond counter
+// wraps after ~49 days and would corrupt the anchoring on long-running rigs.
 //
 // add() runs on the main loop task while the HTTP server streams from its own
 // task, so all buffer access goes through a mutex.  Readers pull bounded
@@ -39,7 +42,7 @@ class SensorHistory
 {
   public:
     static constexpr size_t MAX_POINTS = 20000;
-    static constexpr uint32_t SAMPLE_INTERVAL_MS = (6 * 60 * 60 * 1000) / MAX_POINTS;
+    static constexpr uint32_t SAMPLE_INTERVAL_MS = (12 * 60 * 60 * 1000) / MAX_POINTS;
 
     using Buffer = etl::circular_buffer_ext<SensorHistoryPoint>;
 
@@ -98,6 +101,10 @@ class SensorHistory
       _total[idx] += value;
       _count[idx]++;
 
+      // millis() drives the sample cadence: it's only ever read as a delta, and
+      // unsigned subtraction stays correct across its 32-bit wrap.  The stored
+      // timestamp, however, is an absolute value the browser anchors against, so
+      // it comes from the 64-bit esp_timer instead to avoid the ~49-day wrap.
       uint32_t now = millis();
       if (_lastSample[idx] != 0 && now - _lastSample[idx] < SAMPLE_INTERVAL_MS)
         return;
@@ -107,8 +114,10 @@ class SensorHistory
       _total[idx] = 0;
       _count[idx] = 0;
 
+      uint32_t uptime = (uint32_t)(esp_timer_get_time() / 1000000);
+
       xSemaphoreTake(_mutex, portMAX_DELAY);
-      _buffers[idx]->push(SensorHistoryPoint{now / 1000, average});
+      _buffers[idx]->push(SensorHistoryPoint{uptime, average});
       xSemaphoreGive(_mutex);
     }
 

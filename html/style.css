@@ -60,11 +60,11 @@ html[data-bs-theme="dark"] .c3 .c3-axis line {
 /* Graphs page tab nav: equal-width pills that gracefully wrap onto multiple
    rows on narrow screens.  A grid (rather than flex) keeps every pill the same
    width across all rows — flex grows each row independently, so a lone pill on
-   the last row would stretch full-width.  auto-fit packs as many ~140px columns
+   the last row would stretch full-width.  auto-fit packs as many ~160px columns
    as fit, then wraps the rest into matching columns on the next row. */
 #bomGraphsTabs {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 0.5rem;
 }
 

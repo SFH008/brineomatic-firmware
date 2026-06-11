@@ -145,7 +145,7 @@ esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* requ
       uint16_t pointSize;
       uint32_t uptime; // device uptime in seconds, for timestamp anchoring
       uint32_t count;
-  } preamble = {0x484D4F42 /* "BOMH" */, 1, sizeof(SensorHistoryPoint), millis() / 1000, (uint32_t)rangeCount};
+  } preamble = {0x484D4F42 /* "BOMH" */, 1, sizeof(SensorHistoryPoint), (uint32_t)(esp_timer_get_time() / 1000000), (uint32_t)rangeCount};
 
   response->setCode(200);
   response->setContentType("application/octet-stream");

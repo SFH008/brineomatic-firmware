@@ -24,7 +24,8 @@
     this.historyLoaded = null;
 
     // How far back the graphs show, in seconds; driven by the range dropdown.
-    this.rangeSeconds = 3 * 3600;
+    this.rangeSeconds = 1 * 3600;
+
     // Device boot time in client-clock epoch seconds, learned from the uptime
     // in each history preamble.  Lets a later fetch translate the wall-clock
     // window into the device-uptime startTime the firmware filters on.
@@ -166,9 +167,16 @@
 
     return `
       <div id="bomGraphs" class="col-md-12">
-        <div class="nav" id="bomGraphsTabs" role="tablist">${tabs}</div>
-        <div class="my-2">
-          <select id="bomGraphRange" class="form-select form-select-sm d-inline-block" style="width:auto" aria-label="Graph time range">${rangeOptions}</select>
+        <div class="row align-items-center">
+          <div class="col-12 col-md-8">
+            <div class="nav" id="bomGraphsTabs" role="tablist">${tabs}</div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="my-2 form-floating">
+              <select id="bomGraphRange" class="form-select" aria-label="Graph time range">${rangeOptions}</select>
+              <label for="bomGraphRange">Time Range</label>
+            </div>
+          </div>
         </div>
         <div class="tab-content">${panes}</div>
       </div>`;
