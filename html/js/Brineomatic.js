@@ -535,6 +535,7 @@
   // sensors that aren't present on a given board simply drop out.
   //
   Brineomatic.prototype.MAX_GRAPH_POINTS = 16384;
+  Brineomatic.prototype.GRAPH_HEIGHT = 500;
 
   Brineomatic.prototype.buildGraphSetup = function () {
     const cfg = YB.config.brineomatic;
@@ -550,15 +551,19 @@
         key: 'temperature',
         label: 'Temperature',
         axisLabel: `Temperature (°${this.getShortTemperatureUnits(cfg.temperature_units)})`,
+        unit: `°${this.getShortTemperatureUnits(cfg.temperature_units)}`,
+        decimals: 1,
         series: [
-          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
           { sensor: 'water_temperature', label: 'Water Temperature', enabled: hasWaterTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
+          { sensor: 'motor_temperature', label: 'Motor Temperature', enabled: hasMotorTemp, convert: v => self.convertTemperature(v, "C", cfg.temperature_units) },
         ]
       },
       {
         key: 'pressure',
         label: 'Pressure',
         axisLabel: `Pressure (${this.getShortPressureUnits(cfg.pressure_units)})`,
+        unit: this.getShortPressureUnits(cfg.pressure_units),
+        decimals: 1,
         min: 0,
         series: [
           { sensor: 'filter_pressure', label: 'Filter Pressure', enabled: !!cfg.has_filter_pressure_sensor, convert: v => self.convertPressure(v, "Bar", cfg.pressure_units) },
@@ -569,6 +574,8 @@
         key: 'salinity',
         label: 'Salinity',
         axisLabel: 'Salinity (PPM)',
+        unit: 'PPM',
+        decimals: 0,
         min: 0,
         series: [
           { sensor: 'product_salinity', label: 'Product Salinity', enabled: !!cfg.has_product_tds_sensor, convert: v => v },
@@ -579,6 +586,8 @@
         key: 'flowrate',
         label: 'Flowrate',
         axisLabel: `Flowrate (${this.getShortFlowrateUnits(cfg.flowrate_units)})`,
+        unit: this.getShortFlowrateUnits(cfg.flowrate_units),
+        decimals: 1,
         min: 0,
         series: [
           { sensor: 'product_flowrate', label: 'Product Flowrate', enabled: !!cfg.has_product_flow_sensor, convert: v => self.convertFlowrate(v, "lph", cfg.flowrate_units) },
@@ -589,6 +598,8 @@
         key: 'tankLevel',
         label: 'Tank Level',
         axisLabel: 'Tank Level (%)',
+        unit: '%',
+        decimals: 0,
         min: 0,
         max: 100,
         series: [
@@ -599,6 +610,8 @@
         key: 'batteryLevel',
         label: 'Battery',
         axisLabel: 'Battery Level (%)',
+        unit: '%',
+        decimals: 0,
         min: 0,
         max: 100,
         series: [
@@ -638,7 +651,7 @@
     return `
       <div id="bomGraphs" class="col-md-12">
         <h3>Graphs</h3>
-        <ul class="nav nav-tabs" id="bomGraphsTabs" role="tablist">${tabs}</ul>
+        <ul class="nav nav-pills" id="bomGraphsTabs" role="tablist">${tabs}</ul>
         <div class="tab-content">${panes}</div>
       </div>`;
   };
@@ -671,6 +684,7 @@
 
       this.graphCharts[tab.key] = c3.generate({
         bindto: `#bomGraphChart-${tab.key}`,
+        size: { height: this.GRAPH_HEIGHT },
         data: {
           xs: xs,
           columns: columns,
@@ -681,7 +695,8 @@
             type: 'timeseries',
             tick: {
               format: '%H:%M:%S',
-              culling: { max: 8 }
+              count: 8,
+              fit: false
             }
           },
           y: {
@@ -689,6 +704,17 @@
             min: tab.min,
             max: tab.max,
             padding: (tab.min !== undefined) ? { bottom: 0 } : undefined
+          }
+        },
+        tooltip: {
+          format: {
+            value: function (value) {
+              if (value === null || value === undefined || isNaN(value))
+                return value;
+              const rounded = Number(value).toFixed(tab.decimals);
+              const sep = (tab.unit === '%') ? '' : ' ';
+              return tab.unit ? `${rounded}${sep}${tab.unit}` : rounded;
+            }
           }
         },
         point: { show: false },
@@ -701,7 +727,7 @@
     $('#bomGraphsTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
       const key = e.target.id.replace('bomGraphTab-', '');
       if (self.graphCharts && self.graphCharts[key])
-        self.graphCharts[key].resize();
+        self.graphCharts[key].resize({ height: self.GRAPH_HEIGHT });
     });
   };
 
@@ -726,7 +752,7 @@
     this.createGraphs();
     this.loadGraphHistory();
     for (let key in this.graphCharts)
-      this.graphCharts[key].resize();
+      this.graphCharts[key].resize({ height: this.GRAPH_HEIGHT });
   };
 
   Brineomatic.prototype.loadGraphHistory = function () {

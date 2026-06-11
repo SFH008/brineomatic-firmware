@@ -39,6 +39,12 @@ html[data-bs-theme="dark"] th[role=columnheader]:not([data-sort-method='none']):
     border-color: #b0b0b0 transparent;
 }
 
+.c3 .c3-axis-y-label,
+.c3 .c3-axis-y2-label {
+    font-size: 15px;
+    font-weight: 600;
+}
+
 html[data-bs-theme="dark"] .c3 .c3-gauge-value,
 html[data-bs-theme="dark"] .c3 .c3-gauge-units,
 html[data-bs-theme="dark"] .c3 .c3-axis text,

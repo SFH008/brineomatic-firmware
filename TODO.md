@@ -1,41 +1,11 @@
 # v2.8
 
-# Sensor data graphs (stored in psram)
+## Graphs
 
-We want to create a graph system for data from each of the important sensors:  "water_temperature", "motor_temperature", "product_flowrate", "brine_flowrate", "product_salinity", "brine_salinity", "filter_pressure", "membrane_pressure", "battery_level", "tank_level"
+* small window tabs -> pills?
+* add isMFD() gate on adding Graphs page
 
-We will use c3.js / d3.js for the graphing library.
-
-The graphs should be located on a separate graph tab that has its own nav tabs to select which sensor data to display.
-
-## Phase 1: Memory & Storage Strategy (ESP32)
-Data Structure: Use an etl::circular_buffer holding a tightly packed struct (e.g., 4-byte timestamp, 4-byte float value) to ensure a predictable 8-byte footprint per entry.
-
-PSRAM Allocation:
-    * Static: Use the EXT_RAM_BSS_ATTR macro to force the global ETL buffer into the PSRAM .bss segment.
-
-## Phase 2: Data Transfer Strategy (Network)
-Bypass JSON: Do not use ArduinoJson for the historical data dump, as the text overhead (500+ KB) will exhaust SRAM and crash the microcontroller.
-
-Raw Binary: Serve the data as an application/octet-stream binary blob (exactly 128 KB for 16,384 points).
-
-## Phase 3: The Chunked Loop (ESP32 Web Server)
-Maintain Order: Do not dump the raw memory pointer directly, as the circular buffer wraps around. Instead, use a C++ range-based for loop to iterate through the ETL buffer logically (oldest to newest).
-
-Stack Buffering: Create a small, temporary array on the fast internal stack (e.g., 64 points / 512 bytes).
-
-Chunking: Fill this temporary stack buffer in the loop, and use request.write() to blast out 512-byte chunks to the network. This keeps memory usage tiny while maximizing TCP efficiency.
-
-## Phase 4: Frontend Parsing (JavaScript)
-Browser Fetch: Use fetch('/api/sensor_history?sensor={sensor}') and extract the payload using .arrayBuffer().
-
-Instant Parsing: Use JavaScript's native DataView to parse the 8-byte chunks (uint32 and float32) back into JavaScript objects for your charting library. This is extremely fast and fully supported in older browsers like Chrome 69.
-
-## Phase 5: Graph Update
-
-Extend the update message handler to update the graph with realtime data
-
-## Other Stuff 
+## Other
 
 * move non-hardware config out of hardware config - add a single tab "Runtime"
     * Flush Mode
