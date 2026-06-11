@@ -141,6 +141,38 @@ class SensorHistory
       return n;
     }
 
+    // Clear the history for a single sensor (by name), discarding its buffered
+    // points and any in-progress interval average.
+    void reset(const char* sensor)
+    {
+      int idx = indexOf(sensor);
+      if (idx < 0)
+        return;
+      reset(idx);
+    }
+
+    // Clear the history for a single sensor (by index).
+    void reset(int idx)
+    {
+      if (idx < 0 || (size_t)idx >= SENSOR_COUNT || !_buffers[idx])
+        return;
+
+      xSemaphoreTake(_mutex, portMAX_DELAY);
+      _buffers[idx]->clear();
+      xSemaphoreGive(_mutex);
+
+      _total[idx] = 0;
+      _count[idx] = 0;
+      _lastSample[idx] = 0;
+    }
+
+    // Clear the history for every sensor.
+    void reset()
+    {
+      for (size_t i = 0; i < SENSOR_COUNT; i++)
+        reset((int)i);
+    }
+
   private:
     SemaphoreHandle_t _mutex = NULL;
     uint32_t _lastSample[SENSOR_COUNT] = {0};
