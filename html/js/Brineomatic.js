@@ -6643,7 +6643,8 @@
   });
   graphsPage.onClose(YB.App.stopUpdatePoller);
 
-  YB.App.addPage(graphsPage);
+  if (!YB.App.isMFD())
+    YB.App.addPage(graphsPage);
 
   //get totalRuntime
   YB.App.onStart(function () {

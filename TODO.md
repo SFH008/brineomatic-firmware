@@ -2,8 +2,7 @@
 
 ## Graphs
 
-* small window tabs -> pills?
-* add isMFD() gate on adding Graphs page
+* Modify SensorHistory to use rolling average so that we get the average reading from the last 1s
 
 ## Other
 
