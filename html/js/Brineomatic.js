@@ -620,9 +620,15 @@
       },
     ];
 
-    // only show tabs that have at least one available sensor
-    for (let tab of this.graphSetup)
+    // only show tabs that have at least one available sensor, and let each
+    // series inherit its tab's display precision so values can be rounded as
+    // they're stored (a steady-state reading then graphs as a flat line
+    // instead of jittering in the noise below the displayed precision).
+    for (let tab of this.graphSetup) {
       tab.enabled = tab.series.some(s => s.enabled);
+      for (let s of tab.series)
+        s.decimals = tab.decimals;
+    }
   };
 
   Brineomatic.prototype.generateGraphsUI = function () {
@@ -811,18 +817,21 @@
       });
   };
 
-  // Exponential moving average for noisy series (e.g. motor temperature).
-  // series.smooth is the alpha (0..1): lower = smoother/laggier.  State lives
-  // on graphData[sensor] so the smoothed value carries from loaded history
-  // into live updates seamlessly.  No-op when the series has no smooth factor.
+  // Smooth (optionally) and round an incoming value before it's stored.
+  //
+  // series.smooth is the EMA alpha (0..1): lower = smoother/laggier.  The EMA
+  // state lives on graphData[sensor] so the smoothed value carries from loaded
+  // history into live updates seamlessly; we keep it at full precision and only
+  // round the returned (stored/plotted) value to series.decimals so a steady
+  // reading graphs as a flat line instead of jittering in sub-display noise.
   Brineomatic.prototype.smoothValue = function (series, value) {
-    if (!series.smooth)
-      return value;
-    const data = this.graphData[series.sensor];
-    const prev = data._ema;
-    const next = (prev === undefined) ? value : prev + series.smooth * (value - prev);
-    data._ema = next;
-    return next;
+    if (series.smooth) {
+      const data = this.graphData[series.sensor];
+      const prev = data._ema;
+      value = (prev === undefined) ? value : prev + series.smooth * (value - prev);
+      data._ema = value;
+    }
+    return (series.decimals === undefined) ? value : Number(value.toFixed(series.decimals));
   };
 
   // Build the c3 column set for a tab.  c3's timeseries axis chokes on a series
