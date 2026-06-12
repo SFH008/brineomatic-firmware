@@ -402,6 +402,11 @@
   // tab up front pulls a lot of binary blobs the user may never look at, so we
   // only load the tab that's actually on screen and remember which we've done
   // (historyLoaded) so switching back and forth doesn't refetch.
+  //
+  // Each fetch parses into a fresh buffer off to the side; the live data is
+  // swapped only once every series has arrived, in one shot, so the chart
+  // never redraws against a half-loaded mix of old and new windows (live
+  // updates keep redrawing the old, consistent data in the meantime).
   SensorGraphs.prototype.loadHistory = function (tab) {
     const self = this;
 
@@ -410,9 +415,18 @@
 
     this.historyLoaded[tab.key] = true;
 
+    // setRange() bumps _loadSeq, so a range change mid-flight makes this load
+    // stale: its results are dropped rather than clobbering the newer fetch.
+    const seq = this._loadSeq || 0;
+
     const enabledSeries = tab.series.filter(s => s.enabled);
     Promise.all(enabledSeries.map(s => self.fetchHistory(s)))
-      .then(() => self.refresh(tab))
+      .then(results => {
+        if (seq !== (self._loadSeq || 0))
+          return; // superseded by a range change; the newer load will refresh
+        enabledSeries.forEach((s, i) => self.data[s.sensor] = results[i]);
+        self.refresh(tab);
+      })
       .catch(err => {
         // let a failed load retry the next time the tab is shown
         self.historyLoaded[tab.key] = false;
@@ -422,9 +436,11 @@
 
   // Switch the history window.  Drop the loaded-flags so every tab refetches
   // against the new range; the visible tab reloads now and the rest reload
-  // lazily the next time they're shown.
+  // lazily the next time they're shown.  Bumping _loadSeq invalidates any
+  // load still in flight so its (old-range) data can't land after ours.
   SensorGraphs.prototype.setRange = function (rangeSeconds) {
     this.rangeSeconds = rangeSeconds;
+    this._loadSeq = (this._loadSeq || 0) + 1;
     this.historyLoaded = {};
     const tab = this.activeTab();
     if (tab)
@@ -452,9 +468,11 @@
     // wall-clock window into the device-uptime startTime the firmware filters
     // on so it sends only the slice we'll show.  On the very first fetch we
     // have no anchor yet, so we pull the whole buffer and rely on the
-    // client-side trim below.
+    // client-side trim below.  Clamp at zero: a window reaching back before
+    // boot would go negative, which the firmware's strtoul wraps to a huge
+    // unsigned value that filters out every point.
     if (self.rangeSeconds && self._bootEpoch !== undefined) {
-      const startTime = Math.round(clientNow / 1000 - self._bootEpoch - self.rangeSeconds);
+      const startTime = Math.max(0, Math.round(clientNow / 1000 - self._bootEpoch - self.rangeSeconds));
       url += `&startTime=${startTime}`;
     }
 
@@ -481,10 +499,11 @@
         self._bootEpoch = clientNow / 1000 - uptime;
         const minWall = self.rangeSeconds ? clientNow / 1000 - self.rangeSeconds : -Infinity;
 
-        const data = self.data[series.sensor];
-        data.t.length = 0;
-        data.v.length = 0;
-        data._ema = undefined; // restart smoothing from the freshly loaded history
+        // parse into a fresh buffer rather than the live arrays; loadHistory
+        // swaps it in once every series has arrived, so a slow fetch never
+        // redraws against half-loaded data.  Smoothing restarts here and the
+        // EMA state rides along into live updates after the swap.
+        const data = { t: [], v: [], _ema: undefined };
 
         for (let i = 0; i < count; i++) {
           const offset = 16 + i * pointSize;
@@ -500,21 +519,23 @@
             continue;
 
           data.t.push(wall);
-          data.v.push(self.smoothValue(series, series.convert(value)));
+          data.v.push(self.smoothValue(series, series.convert(value), data));
         }
+
+        return data;
       });
   };
 
   // Smooth (optionally) and round an incoming value before it's stored.
   //
   // series.smooth is the EMA alpha (0..1): lower = smoother/laggier.  The EMA
-  // state lives on data[sensor] so the smoothed value carries from loaded
-  // history into live updates seamlessly; we keep it at full precision and only
-  // round the returned (stored/plotted) value to series.decimals so a steady
-  // reading graphs as a flat line instead of jittering in sub-display noise.
-  SensorGraphs.prototype.smoothValue = function (series, value) {
+  // state lives on the passed data object (the same one the value is stored
+  // in) so the smoothed value carries from loaded history into live updates
+  // seamlessly; we keep it at full precision and only round the returned
+  // (stored/plotted) value to series.decimals so a steady reading graphs as a
+  // flat line instead of jittering in sub-display noise.
+  SensorGraphs.prototype.smoothValue = function (series, value, data) {
     if (series.smooth) {
-      const data = this.data[series.sensor];
       const prev = data._ema;
       value = (prev === undefined) ? value : prev + series.smooth * (value - prev);
       data._ema = value;
@@ -596,9 +617,12 @@
           continue;
 
         data.t.push(nowSec);
-        data.v.push(this.smoothValue(s, s.convert(value)));
+        data.v.push(this.smoothValue(s, s.convert(value), data));
 
-        if (data.t.length > this.MAX_POINTS) {
+        // age out points that fall off the back of the selected window so the
+        // graph keeps showing exactly the chosen range as live data streams in
+        const minT = this.rangeSeconds ? nowSec - this.rangeSeconds : 0;
+        while (data.t.length > this.MAX_POINTS || (data.t.length && data.t[0] < minT)) {
           data.t.shift();
           data.v.shift();
         }
