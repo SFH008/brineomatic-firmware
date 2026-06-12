@@ -159,6 +159,11 @@
     }
 
     let rangeOptions = '';
+    for (const m of [15, 30]) {
+      const secs = m * 60;
+      const selected = (secs === this.rangeSeconds) ? ' selected' : '';
+      rangeOptions += `<option value="${secs}"${selected}>Last ${m} Minutes</option>`;
+    }
     for (let h = 1; h <= 12; h++) {
       const secs = h * 3600;
       const selected = (secs === this.rangeSeconds) ? ' selected' : '';
