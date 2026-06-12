@@ -1444,7 +1444,7 @@ void Brineomatic::runStateMachine()
 
       uint32_t productionStart = millis();
       while (true) {
-        stats.startCycle("run");
+        stats.startCycle("run", 15000);
 
         if (checkBatteryLevel(runResult))
           return logResult(Status::RUNNING, runResult);
