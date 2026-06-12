@@ -1,7 +1,5 @@
 # v2.8
 
-## Other
-
 * move non-hardware config out of hardware config - add a single tab "Runtime"
     * Flush Mode
         * auto flush configuration

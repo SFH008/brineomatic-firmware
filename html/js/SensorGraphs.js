@@ -179,6 +179,7 @@
           </div>
         </div>
         <div class="tab-content">${panes}</div>
+        <button id="bomGraphDownload" class="btn btn-primary mt-3" type="button">Download as JSON</button>
       </div>`;
   };
 
@@ -340,6 +341,11 @@
     // changing the time range refetches fresh data for the new window
     $('#bomGraphRange').on('change', function () {
       self.setRange(parseInt(this.value, 10));
+    });
+
+    // export the currently-viewed graph's series to a downloaded JSON file
+    $('#bomGraphDownload').on('click', function () {
+      self.downloadJSON();
     });
 
     // keep the charts fitted to the window; setSize preserves the current
@@ -580,6 +586,45 @@
     // is zoomed in so their view stays put as new points stream in.  When not
     // zoomed we let it refit so the chart keeps following the latest data.
     u.setData(this.dataFor(tab), !u._userZoomed);
+  };
+
+  // Export the currently-viewed graph's data as a downloaded JSON file.  Each
+  // enabled series becomes a field keyed by its sensor name, carrying its
+  // display label, units, and a list of [time, value] pairs (time in epoch
+  // milliseconds so it parses straight into a JS Date).  The data is the same
+  // smoothed/converted values the chart plots, in the user's display units.
+  SensorGraphs.prototype.downloadJSON = function () {
+    const tab = this.activeTab();
+    if (!tab)
+      return;
+
+    const out = {};
+    for (let s of tab.series.filter(s => s.enabled)) {
+      const d = this.data[s.sensor] || { t: [], v: [] };
+      out[s.sensor] = {
+        label: s.label,
+        units: tab.unit,
+        data: d.t.map((t, i) => [Math.round(t * 1000), d.v[i]])
+      };
+    }
+
+    // colons are illegal in filenames on some platforms, so build the
+    // timestamp by hand as YYYY-MM-DDTHH-MM-SS rather than using toISOString.
+    const now = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}` +
+      `T${p(now.getHours())}-${p(now.getMinutes())}-${p(now.getSeconds())}`;
+    const filename = `${tab.label.replace(/\s+/g, '_')}_${stamp}.json`;
+
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Append realtime values from an update message to the graph data, matching
