@@ -84,9 +84,10 @@ void BrineomaticController::loop()
 // stack-buffered chunks.  Timestamps are device uptime; the preamble carries
 // the current uptime so the browser can anchor them to wall-clock time.
 //
-// Optional startTime/endTime query params (also device-uptime seconds) clip the
-// dump to a window so the browser can pull just the last few hours instead of
-// the whole buffer.
+// Optional startTime/endTime query params clip the dump to a window so the
+// browser can pull just the last few hours instead of the whole buffer.  They
+// are expressed as seconds-before-now (relative to the device's current uptime)
+// so the browser doesn't need to know when the device booted.
 esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* request, PsychicResponse* response)
 {
   String sensor = request->getParam("sensor", "");
@@ -94,15 +95,21 @@ esp_err_t BrineomaticController::handleSensorHistoryRequest(PsychicRequest* requ
   if (idx < 0)
     return response->send(400, "text/plain", "Unknown or missing sensor parameter.");
 
-  // Optional time window, in the same device-uptime seconds the points carry.
-  // Return points with startTime <= time <= endTime; an unset bound is open, so
-  // no params at all returns the full buffer.
+  // Optional time window, given as seconds-before-now: startTime is how far back
+  // the window reaches, endTime how recent its newer edge is (omitted = now).
+  // Convert each against the device's current uptime into the absolute
+  // device-uptime seconds the points carry, clamping a window that reaches back
+  // before boot to 0.  Return points with startTime <= time <= endTime; an unset
+  // bound is open, so no params at all returns the full buffer.
   String startStr = request->getParam("startTime", "");
   String endStr = request->getParam("endTime", "");
   bool hasStart = startStr.length() > 0;
   bool hasEnd = endStr.length() > 0;
-  uint32_t startTime = strtoul(startStr.c_str(), nullptr, 10);
-  uint32_t endTime = strtoul(endStr.c_str(), nullptr, 10);
+  uint32_t nowSec = (uint32_t)(esp_timer_get_time() / 1000000);
+  uint32_t startAgo = strtoul(startStr.c_str(), nullptr, 10);
+  uint32_t endAgo = strtoul(endStr.c_str(), nullptr, 10);
+  uint32_t startTime = (startAgo < nowSec) ? nowSec - startAgo : 0;
+  uint32_t endTime = (endAgo < nowSec) ? nowSec - endAgo : 0;
 
   // snapshot the count up front; points added mid-transfer wait for next fetch
   size_t count = wm.history.count(idx);

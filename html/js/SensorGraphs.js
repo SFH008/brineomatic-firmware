@@ -25,11 +25,6 @@
 
     // How far back the graphs show, in seconds; driven by the range dropdown.
     this.rangeSeconds = 1 * 3600;
-
-    // Device boot time in client-clock epoch seconds, learned from the uptime
-    // in each history preamble.  Lets a later fetch translate the wall-clock
-    // window into the device-uptime startTime the firmware filters on.
-    this._bootEpoch = undefined;
   }
 
   SensorGraphs.prototype.MAX_POINTS = 20000;
@@ -159,12 +154,12 @@
     }
 
     let rangeOptions = '';
-    for (const m of [15, 30]) {
+    for (const m of [5, 10, 15, 30]) {
       const secs = m * 60;
       const selected = (secs === this.rangeSeconds) ? ' selected' : '';
       rangeOptions += `<option value="${secs}"${selected}>Last ${m} Minutes</option>`;
     }
-    for (let h = 1; h <= 12; h++) {
+    for (const h of [1, 2, 3, 6, 12]) {
       const secs = h * 3600;
       const selected = (secs === this.rangeSeconds) ? ' selected' : '';
       rangeOptions += `<option value="${secs}"${selected}>Last ${h} Hour${h > 1 ? 's' : ''}</option>`;
@@ -469,17 +464,11 @@
     const clientNow = Date.now();
 
     let url = `/api/sensor_history?sensor=${series.sensor}`;
-    // Once a prior preamble has told us when the device booted, translate the
-    // wall-clock window into the device-uptime startTime the firmware filters
-    // on so it sends only the slice we'll show.  On the very first fetch we
-    // have no anchor yet, so we pull the whole buffer and rely on the
-    // client-side trim below.  Clamp at zero: a window reaching back before
-    // boot would go negative, which the firmware's strtoul wraps to a huge
-    // unsigned value that filters out every point.
-    if (self.rangeSeconds && self._bootEpoch !== undefined) {
-      const startTime = Math.max(0, Math.round(clientNow / 1000 - self._bootEpoch - self.rangeSeconds));
-      url += `&startTime=${startTime}`;
-    }
+    // The firmware filters on seconds-before-now, so the window is just the
+    // selected range expressed that way — no boot anchor needed, so this works
+    // on the very first fetch too.  Without a range we pull the whole buffer.
+    if (self.rangeSeconds)
+      url += `&startTime=${Math.round(self.rangeSeconds)}`;
 
     return fetch(url)
       .then(response => {
@@ -498,10 +487,8 @@
 
         console.log(`${series.sensor} history size: ${count}`);
 
-        // remember the device boot time so the next fetch can ask the firmware
-        // to pre-filter, and trim anything older than the window here (covers
-        // the first fetch, before _bootEpoch is known, and any slack in it).
-        self._bootEpoch = clientNow / 1000 - uptime;
+        // trim anything older than the window here as a backstop against slack
+        // in the firmware's filter (and rounding at the window edge).
         const minWall = self.rangeSeconds ? clientNow / 1000 - self.rangeSeconds : -Infinity;
 
         // parse into a fresh buffer rather than the live arrays; loadHistory
