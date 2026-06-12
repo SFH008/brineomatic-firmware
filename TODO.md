@@ -1,18 +1,5 @@
 # v2.8
 
-## Graphs
-
-* add a graph time range selector (dropdown) below the nav pills
-    * default to 3 hours
-    * options: Last 1...12 Hour(s)
-    * onchange load fresh data from /api/sensor_history
-    * add startTime and endTime parametes to BrineomaticController - /api/sensor_history
-        * should be same unix timestamp format as the sensor history data points
-    * return any points that are after start, before end, or all points if none specified.
-
-
-* find out what is causing the sporadic failure with starting a flush.
-
 ## Other
 
 * move non-hardware config out of hardware config - add a single tab "Runtime"
