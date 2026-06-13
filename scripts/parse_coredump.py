@@ -48,7 +48,7 @@ You need to run this every time you open a new shell:
 		elf = f".pio/build/{args.board}/firmware.elf"
 	# Release ELF naming from your original script
 	else:
-		elf = f"releases/{args.board}-{args.version}.elf"
+		elf = f"docs/releases/{args.board}/{args.version}.elf"
 
 	if not Path(elf).is_file():
 		print(f"Error: ELF not found: {elf}")
@@ -56,9 +56,6 @@ You need to run this every time you open a new shell:
 
 	#keep our ELF file for debugging later on....
 	print("Analyzing coredump")
-	if args.version == 'dev':
-		cmd = f'espcoredump.py info_corefile -c "{args.file}" -t raw .pio/build/{args.board}/firmware.elf'
-	else:
-		cmd = f'espcoredump.py info_corefile -c "{args.file}" -t raw releases/{args.board}-{args.version}.elf'
+	cmd = f'espcoredump.py info_corefile -c "{args.file}" -t raw {elf}'
 	print(cmd)
 	os.system(cmd)
