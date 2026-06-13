@@ -154,15 +154,25 @@
     }
 
     let rangeOptions = '';
-    for (const m of [5, 10, 15, 30]) {
+    for (const m of [1, 5, 10, 15, 30]) {
       const secs = m * 60;
       const selected = (secs === this.rangeSeconds) ? ' selected' : '';
-      rangeOptions += `<option value="${secs}"${selected}>Last ${m} Minutes</option>`;
+      let label;
+      if (m === 1)
+        label = 'Last Minute';
+      else
+        label = `Last ${m} Minutes`;
+      rangeOptions += `<option value="${secs}"${selected}>${label}</option>`;
     }
     for (const h of [1, 2, 3, 6, 12]) {
       const secs = h * 3600;
       const selected = (secs === this.rangeSeconds) ? ' selected' : '';
-      rangeOptions += `<option value="${secs}"${selected}>Last ${h} Hour${h > 1 ? 's' : ''}</option>`;
+      let label;
+      if (h === 1)
+        label = 'Last Hour';
+      else
+        label = `Last ${h} Hours`;
+      rangeOptions += `<option value="${secs}"${selected}>${label}</option>`;
     }
 
     return `
