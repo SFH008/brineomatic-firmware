@@ -325,6 +325,8 @@
   }
 
   Brineomatic.prototype.handleUpdateMessage = function (msg) {
+    if (!YB.config)
+      return;
     if (!YB.config.brineomatic)
       return;
 
@@ -404,6 +406,8 @@
     //above, so the gauges show the same finished numbers as the rest of the UI.
     if (!YB.App.isMFD()) {
       if (this.gauges && YB.App.currentPage == "home") {
+        //redraw the error-threshold ticks when the run mode changes
+        this.gauges.setStatus(msg.status);
         this.gauges.update({
           motor_temperature, water_temperature, filter_pressure, membrane_pressure,
           product_salinity, brine_salinity, product_flowrate, brine_flowrate,

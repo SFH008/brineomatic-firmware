@@ -31,7 +31,48 @@
     this.gaugeEditMode = false;
     this.sortableGauges = null;
     this.sortableGaugesMFD = null;
+
+    // the most recently seen run mode (msg.status); drives which error
+    // thresholds we draw as gauge ticks.  null until the first update arrives.
+    this.status = null;
   }
+
+  // The error thresholds that cancel a cycle as a fault, mapped to the gauge
+  // they're checked against and the run mode(s) they're active in.  Each value
+  // lives in YB.config.brineomatic in base units (Bar / lph / C / 0-1), is
+  // gated by its enableKey flag, and is drawn only when this.status matches.
+  // `requires` is an extra config flag that must also be truthy (used for the
+  // flush motor-temp check, which only runs when the HP motor drives the flush).
+  // gauge keys are camelCase (this[gauge + 'Gauge'] is the c3 chart).
+  //
+  // Note: the firmware compares the "pickle total" and "flush" flowrate checks
+  // against brine flowrate (getBrineFlowrate), and run-total against total
+  // flowrate (getTotalFlowrate) — see Brineomatic::runStateMachine / the
+  // check* helpers in src/brineomatic.cpp — so the gauge keys reflect that, not
+  // the config field names.
+  const ERROR_TICKS = [
+    // RUNNING
+    { gauge: 'membranePressure', statuses: ['RUNNING'], enableKey: 'enable_membrane_pressure_high_check', valueKey: 'membrane_pressure_high_threshold', unit: 'pressure' },
+    { gauge: 'membranePressure', statuses: ['RUNNING'], enableKey: 'enable_membrane_pressure_low_check', valueKey: 'membrane_pressure_low_threshold', unit: 'pressure' },
+    { gauge: 'filterPressure', statuses: ['RUNNING'], enableKey: 'enable_filter_pressure_high_check', valueKey: 'filter_pressure_high_threshold', unit: 'pressure' },
+    { gauge: 'filterPressure', statuses: ['RUNNING'], enableKey: 'enable_filter_pressure_low_check', valueKey: 'filter_pressure_low_threshold', unit: 'pressure' },
+    { gauge: 'productFlowrate', statuses: ['RUNNING'], enableKey: 'enable_product_flowrate_high_check', valueKey: 'product_flowrate_high_threshold', unit: 'flowrate' },
+    { gauge: 'productFlowrate', statuses: ['RUNNING'], enableKey: 'enable_product_flowrate_low_check', valueKey: 'product_flowrate_low_threshold', unit: 'flowrate' },
+    { gauge: 'totalFlowrate', statuses: ['RUNNING'], enableKey: 'enable_run_total_flowrate_low_check', valueKey: 'run_total_flowrate_low_threshold', unit: 'flowrate' },
+    { gauge: 'brineFlowrate', statuses: ['RUNNING'], enableKey: 'enable_diverter_valve_closed_check', valueKey: 'diverter_valve_closed_flowrate_high_threshold', unit: 'flowrate' },
+    { gauge: 'productSalinity', statuses: ['RUNNING'], enableKey: 'enable_product_salinity_high_check', valueKey: 'product_salinity_high_threshold', unit: 'salinity' },
+    { gauge: 'motorTemperature', statuses: ['RUNNING'], enableKey: 'enable_motor_temperature_check', valueKey: 'motor_temperature_high_threshold', unit: 'temperature' },
+    { gauge: 'batteryLevel', statuses: ['RUNNING', 'PICKLING', 'DEPICKLING'], enableKey: 'enable_battery_level_low_check', valueKey: 'battery_level_low_threshold', unit: 'percent' },
+    // FLUSHING
+    { gauge: 'filterPressure', statuses: ['FLUSHING'], enableKey: 'enable_flush_filter_pressure_low_check', valueKey: 'flush_filter_pressure_low_threshold', unit: 'pressure' },
+    { gauge: 'brineFlowrate', statuses: ['FLUSHING'], enableKey: 'enable_flush_flowrate_low_check', valueKey: 'flush_flowrate_low_threshold', unit: 'flowrate' },
+    { gauge: 'totalFlowrate', statuses: ['FLUSHING'], enableKey: 'enable_flush_flowrate_low_check', valueKey: 'flush_flowrate_low_threshold', unit: 'flowrate' },
+    { gauge: 'tankLevel', statuses: ['FLUSHING'], enableKey: 'enable_flush_tank_level_low_check', valueKey: 'flush_tank_level_low_threshold', unit: 'percent' },
+    { gauge: 'motorTemperature', statuses: ['FLUSHING'], enableKey: 'enable_motor_temperature_check', requires: 'autoflush_use_high_pressure_motor', valueKey: 'motor_temperature_high_threshold', unit: 'temperature' },
+    // PICKLING / DEPICKLING (checked against brine flowrate)
+    { gauge: 'brineFlowrate', statuses: ['PICKLING', 'DEPICKLING'], enableKey: 'enable_pickle_total_flowrate_low_check', valueKey: 'pickle_total_flowrate_low_threshold', unit: 'flowrate' },
+    { gauge: 'totalFlowrate', statuses: ['PICKLING', 'DEPICKLING'], enableKey: 'enable_pickle_total_flowrate_low_check', valueKey: 'pickle_total_flowrate_low_threshold', unit: 'flowrate' }
+  ];
 
   // Build the 11 c3 gauge instances from the shared sensor config.  Idempotent:
   // handleConfigMessage can fire more than once (reconnect), so bail if the
@@ -389,6 +430,130 @@
       transition: { duration: 0 },
       legend: { hide: true }
     });
+
+    // c3 renders the arcs asynchronously, so internal.radius isn't reliable
+    // until the next tick — defer the first tick draw.
+    setTimeout(() => this.drawAllGaugeTicks(), 0);
+  };
+
+  // Draw a set of caller-supplied tick marks on a c3 gauge.  c3 has no native
+  // gauge-tick support, so we reach into the rendered SVG (via the bundled d3)
+  // and add short radial lines into the already-centred .c3-chart-arcs group.
+  //
+  // ticks is an array of { value, color }: value is in the gauge's own units
+  // (positioned against gauge_min/gauge_max read off the chart), color is any
+  // CSS colour string used for that tick's stroke.
+  //
+  // A c3 semicircle gauge sweeps the top half: the left end is at -90deg and
+  // the right at +90deg (measured from 12 o'clock, clockwise), so a value v
+  // maps to angle = -PI/2 + ((v-min)/(max-min)) * PI.  internal.radius /
+  // internal.innerRadius give the arc band edges (undocumented, pinned to
+  // c3 0.7.20).
+  //
+  // Idempotent: wipes any prior ticks first so re-calls (e.g. the update*
+  // methods after a units change) don't stack lines up.
+  SensorGauges.prototype.addGaugeTicks = function (chart, ticks) {
+    if (!chart)
+      return;
+
+    const internal = chart.internal;
+    const d3 = internal.d3;
+    const rOuter = internal.radius;
+    const rInner = internal.innerRadius;
+
+    const min = internal.config.gauge_min;
+    const max = internal.config.gauge_max;
+
+    const arcs = d3.select(chart.element).select('.c3-chart-arcs');
+    arcs.selectAll('.gauge-tick').remove();
+
+    const span = max - min;
+    if (!span)
+      return;
+
+    // Keep the tick inside the coloured band: inset a couple px from each edge
+    // so it sits within the bar and never overlaps the gauge's outline border.
+    const inset = 1;
+    const r1 = rInner + inset;
+    const r2 = rOuter - inset;
+
+    (ticks || []).forEach(function (tick) {
+      const ratio = (tick.value - min) / span;
+      if (ratio < 0 || ratio > 1)
+        return; // tick outside the gauge span — nothing to draw
+
+      const angle = -Math.PI / 2 + ratio * Math.PI;
+      const sin = Math.sin(angle);
+      const cos = -Math.cos(angle);
+
+      arcs.append('line')
+        .attr('class', 'gauge-tick')
+        .style('stroke', tick.color)
+        .attr('x1', r1 * sin).attr('y1', r1 * cos)
+        .attr('x2', r2 * sin).attr('y2', r2 * cos);
+    });
+  };
+
+  // Convert an error threshold from its stored base unit into the gauge's
+  // current display unit, matching how the gauge value itself is converted in
+  // handleUpdateMessage.
+  SensorGauges.prototype.convertThreshold = function (unit, value) {
+    const cfg = YB.config.brineomatic;
+    switch (unit) {
+      case 'pressure': return this.bom.convertPressure(value, "Bar", cfg.pressure_units);
+      case 'flowrate': return this.bom.convertFlowrate(value, "lph", cfg.flowrate_units);
+      case 'temperature': return this.bom.convertTemperature(value, "C", cfg.temperature_units);
+      case 'percent': return value * 100; // stored 0-1, gauges show %
+      case 'salinity': return value;       // ppm in both
+      default: return value;
+    }
+  };
+
+  // Build and draw the error-threshold ticks for a single gauge (camelCase key,
+  // e.g. 'membranePressure').  Picks the ERROR_TICKS rows for this gauge that
+  // are active in the current run mode (this.status) and whose enable flag (and
+  // any `requires` flag) is set, converts each into the gauge's display unit,
+  // and draws them all in danger red.  An empty set clears the gauge — desired
+  // for modes/gauges with no active threshold.
+  SensorGauges.prototype.drawGaugeTicks = function (gaugeKey) {
+    const chart = this[gaugeKey + 'Gauge'];
+    if (!chart)
+      return;
+
+    const cfg = YB.config.brineomatic;
+    const danger = 'var(--bs-danger)';
+    const ticks = ERROR_TICKS
+      .filter(t => t.gauge === gaugeKey
+        && t.statuses.includes(this.status)
+        && cfg && cfg[t.enableKey]
+        && (!t.requires || cfg[t.requires]))
+      .map(t => ({ value: this.convertThreshold(t.unit, cfg[t.valueKey]), color: danger }));
+
+    this.addGaugeTicks(chart, ticks);
+  };
+
+  // every gauge key that can carry error ticks (the c3 gauges; the volume
+  // tiles aren't c3 charts).  Used by drawAllGaugeTicks.
+  SensorGauges.prototype.gaugeTickKeys = [
+    'motorTemperature', 'waterTemperature', 'filterPressure', 'membranePressure',
+    'productSalinity', 'brineSalinity', 'productFlowrate', 'brineFlowrate',
+    'totalFlowrate', 'tankLevel', 'batteryLevel'
+  ];
+
+  // Draw ticks on every gauge.  Called after create() (deferred a tick so c3
+  // has finished computing arc radii), on status change, and after a units
+  // change; safe to re-run (addGaugeTicks is idempotent).
+  SensorGauges.prototype.drawAllGaugeTicks = function () {
+    this.gaugeTickKeys.forEach(key => this.drawGaugeTicks(key));
+  };
+
+  // Record the current run mode and redraw ticks when it changes.  Called from
+  // handleUpdateMessage, which fires frequently, so we no-op on unchanged status.
+  SensorGauges.prototype.setStatus = function (status) {
+    if (status === this.status)
+      return;
+    this.status = status;
+    this.drawAllGaugeTicks();
   };
 
   // Push fresh readings into the gauges.  The caller (handleUpdateMessage) has
@@ -611,6 +776,7 @@
       this.motorTemperatureGauge.internal.config.gauge_max = cfg.motor_temperature.max;
       this.motorTemperatureGauge.internal.config.color_threshold.values = cfg.motor_temperature.thresholds;
       this.motorTemperatureGauge.internal.levelColor = this.motorTemperatureGauge.internal.generateLevelColor.call(this.motorTemperatureGauge.internal);
+      this.drawGaugeTicks('motorTemperature');
     }
 
     if (this.waterTemperatureGauge) {
@@ -618,6 +784,7 @@
       this.waterTemperatureGauge.internal.config.gauge_max = cfg.water_temperature.max;
       this.waterTemperatureGauge.internal.config.color_threshold.values = cfg.water_temperature.thresholds;
       this.waterTemperatureGauge.internal.levelColor = this.waterTemperatureGauge.internal.generateLevelColor.call(this.waterTemperatureGauge.internal);
+      this.drawGaugeTicks('waterTemperature');
     }
   };
 
@@ -629,6 +796,7 @@
       this.membranePressureGauge.internal.config.gauge_max = cfg.membrane_pressure.max;
       this.membranePressureGauge.internal.config.color_threshold.values = cfg.membrane_pressure.thresholds;
       this.membranePressureGauge.internal.levelColor = this.membranePressureGauge.internal.generateLevelColor.call(this.membranePressureGauge.internal);
+      this.drawGaugeTicks('membranePressure');
     }
 
     if (this.filterPressureGauge) {
@@ -636,6 +804,7 @@
       this.filterPressureGauge.internal.config.gauge_max = cfg.filter_pressure.max;
       this.filterPressureGauge.internal.config.color_threshold.values = cfg.filter_pressure.thresholds;
       this.filterPressureGauge.internal.levelColor = this.filterPressureGauge.internal.generateLevelColor.call(this.filterPressureGauge.internal);
+      this.drawGaugeTicks('filterPressure');
     }
   };
 
@@ -647,6 +816,7 @@
       this.productFlowrateGauge.internal.config.gauge_max = cfg.product_flowrate.max;
       this.productFlowrateGauge.internal.config.color_threshold.values = cfg.product_flowrate.thresholds;
       this.productFlowrateGauge.internal.levelColor = this.productFlowrateGauge.internal.generateLevelColor.call(this.productFlowrateGauge.internal);
+      this.drawGaugeTicks('productFlowrate');
     }
 
     if (this.brineFlowrateGauge) {
@@ -654,6 +824,7 @@
       this.brineFlowrateGauge.internal.config.gauge_max = cfg.brine_flowrate.max;
       this.brineFlowrateGauge.internal.config.color_threshold.values = cfg.brine_flowrate.thresholds;
       this.brineFlowrateGauge.internal.levelColor = this.brineFlowrateGauge.internal.generateLevelColor.call(this.brineFlowrateGauge.internal);
+      this.drawGaugeTicks('brineFlowrate');
     }
 
     if (this.totalFlowrateGauge) {
@@ -661,6 +832,7 @@
       this.totalFlowrateGauge.internal.config.gauge_max = cfg.total_flowrate.max;
       this.totalFlowrateGauge.internal.config.color_threshold.values = cfg.total_flowrate.thresholds;
       this.totalFlowrateGauge.internal.levelColor = this.totalFlowrateGauge.internal.generateLevelColor.call(this.totalFlowrateGauge.internal);
+      this.drawGaugeTicks('totalFlowrate');
     }
   };
 

@@ -57,6 +57,12 @@ html[data-bs-theme="dark"] .c3 .c3-axis line {
     stroke: var(--bs-body-color) !important;
 }
 
+/* Tick marks drawn at each gauge's threshold values (see SensorGauges.js).
+   Stroke colour is set per-tick in JS from the gauge's threshold colour. */
+.c3 .gauge-tick {
+    stroke-width: 1.5px;
+}
+
 /* Graphs page tab nav: equal-width pills that gracefully wrap onto multiple
    rows on narrow screens.  A grid (rather than flex) keeps every pill the same
    width across all rows — flex grows each row independently, so a lone pill on
