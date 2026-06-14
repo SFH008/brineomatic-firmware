@@ -1389,7 +1389,7 @@
 
   Brineomatic.prototype.generateControlUI = function () {
     return /* html */ `
-      <div id="bomInterface" class="row mb-3" style="visibility:hidden">
+      <div id="bomInterface" class="row" style="visibility:hidden">
           <div id="bomInformationDiv" style="display:none" class="col-md-6">
               <h1 class="text-center">
                 Mode: <span class="badge" id="bomStatus"></span>
