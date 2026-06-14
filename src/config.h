@@ -9,7 +9,7 @@
 #ifndef YARR_CONFIG_H
 #define YARR_CONFIG_H
 
-#define YB_FIRMWARE_VERSION "2.7.0"
+#define YB_FIRMWARE_VERSION "2.8.0"
 
 #if defined YB_CONFIG_BRINEOMATIC_REV_A
   #include "./configs/config.brineomatic-rev-a.h"
