@@ -74,28 +74,25 @@
     this.toggleDiverterValve = this.toggleDiverterValve.bind(this);
     this.toggleFlushValve = this.toggleFlushValve.bind(this);
     this.toggleCoolingFan = this.toggleCoolingFan.bind(this);
-    this.toggleGaugeEditMode = this.toggleGaugeEditMode.bind(this);
 
-    this.gaugeAllKeys = [
-      'filterPressure', 'membranePressure', 'productSalinity', 'productFlowrate',
-      'brineSalinity', 'brineFlowrate', 'totalFlowrate', 'motorTemperature',
-      'waterTemperature', 'tankLevel', 'batteryLevel', 'productVolume', 'flushVolume'
-    ];
-    this.gaugeOrder = [...this.gaugeAllKeys];
-    this.gaugeEditMode = false;
-    this.sortableGauges = null;
-    this.sortableGaugesMFD = null;
-
-    // owns the graphs page; created lazily once the first config arrives
-    // (SensorGraphs.js may load after this file, so we can't build it here).
+    // owns the home-page gauges and the graphs page; both created lazily once
+    // the first config arrives (SensorGauges.js / SensorGraphs.js may load
+    // after this file, so we can't build them here).
+    this.gauges = null;
     this.graphs = null;
   }
 
-  Brineomatic.prototype.buildGaugeSetup = function () {
+  // The shared sensor configuration table: per-sensor display range, colour
+  // thresholds, and palette.  Consumed by the home-page gauges (SensorGauges),
+  // the graphs y-axis ranges (SensorGraphs, via this.bom.sensorConfig), and the
+  // text-tile colouring in setDataColor — so it lives here rather than on the
+  // gauges.  Several entries use getters so min/max/thresholds re-evaluate in
+  // the user's current units whenever they're read.
+  Brineomatic.prototype.buildSensorConfig = function () {
 
     let bootstrapColors = YB.Util.getBootstrapColors();
 
-    this.gaugeSetup = {
+    this.sensorConfig = {
       "motor_temperature": {
         get min() { return Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units)); },
         get max() { return Math.round(YB.bom.convertTemperature(80, "C", YB.config.brineomatic.temperature_units)); },
@@ -188,367 +185,6 @@
         "colors": [bootstrapColors.secondary, bootstrapColors.success]
       }
     }
-  }
-
-  Brineomatic.prototype.createGauges = function () {
-    this.motorTemperatureGauge = c3.generate({
-      bindto: '#motorTemperatureGauge',
-      data: {
-        columns: [
-          ['Motor Temperature', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortTemperatureUnits(YB.config.brineomatic.temperature_units);
-            return `${value}°${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.motor_temperature.min,
-        max: this.gaugeSetup.motor_temperature.max
-      },
-      color: {
-        pattern: this.gaugeSetup.motor_temperature.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.motor_temperature.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.waterTemperatureGauge = c3.generate({
-      bindto: '#waterTemperatureGauge',
-      data: {
-        columns: [
-          ['Water Temperature', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortTemperatureUnits(YB.config.brineomatic.temperature_units);
-            return `${value}°${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.water_temperature.min,
-        max: this.gaugeSetup.water_temperature.max
-      },
-      color: {
-        pattern: this.gaugeSetup.water_temperature.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.water_temperature.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.filterPressureGauge = c3.generate({
-      bindto: '#filterPressureGauge',
-      data: {
-        columns: [
-          ['Filter Pressure', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortPressureUnits(YB.config.brineomatic.pressure_units);
-            return `${value} ${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.filter_pressure.min,
-        max: this.gaugeSetup.filter_pressure.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.filter_pressure.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.filter_pressure.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.membranePressureGauge = c3.generate({
-      bindto: '#membranePressureGauge',
-      data: {
-        columns: [
-          ['Membrane Pressure', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortPressureUnits(YB.config.brineomatic.pressure_units);
-            return `${value} ${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.membrane_pressure.min,
-        max: this.gaugeSetup.membrane_pressure.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.membrane_pressure.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.membrane_pressure.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.productSalinityGauge = c3.generate({
-      bindto: '#productSalinityGauge',
-      data: {
-        columns: [
-          ['Product Salinity', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            return `${value} PPM`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.product_salinity.min,
-        max: this.gaugeSetup.product_salinity.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.product_salinity.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.product_salinity.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.brineSalinityGauge = c3.generate({
-      bindto: '#brineSalinityGauge',
-      data: {
-        columns: [
-          ['Brine Salinity', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            return `${value} PPM`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.brine_salinity.min,
-        max: this.gaugeSetup.brine_salinity.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.brine_salinity.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.brine_salinity.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.productFlowrateGauge = c3.generate({
-      bindto: '#productFlowrateGauge',
-      data: {
-        columns: [
-          ['Product Flowrate', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortFlowrateUnits(YB.config.brineomatic.flowrate_units);
-            return `${value} ${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.product_flowrate.min,
-        max: this.gaugeSetup.product_flowrate.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.product_flowrate.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.product_flowrate.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.brineFlowrateGauge = c3.generate({
-      bindto: '#brineFlowrateGauge',
-      data: {
-        columns: [
-          ['Brine Flowrate', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortFlowrateUnits(YB.config.brineomatic.flowrate_units);
-            return `${value} ${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.brine_flowrate.min,
-        max: this.gaugeSetup.brine_flowrate.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.brine_flowrate.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.brine_flowrate.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.totalFlowrateGauge = c3.generate({
-      bindto: '#totalFlowrateGauge',
-      data: {
-        columns: [
-          ['Total Flowrate', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            let short = YB.bom.getShortFlowrateUnits(YB.config.brineomatic.flowrate_units);
-            return `${value} ${short}`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.total_flowrate.min,
-        max: this.gaugeSetup.total_flowrate.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.total_flowrate.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.total_flowrate.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.tankLevelGauge = c3.generate({
-      bindto: '#tankLevelGauge',
-      data: {
-        columns: [
-          ['Tank Level', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            return `${value}%`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.tank_level.min,
-        max: this.gaugeSetup.tank_level.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.tank_level.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.tank_level.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    this.batteryLevelGauge = c3.generate({
-      bindto: '#batteryLevelGauge',
-      data: {
-        columns: [
-          ['Battery Level', 0]
-        ],
-        type: 'gauge',
-      },
-      gauge: {
-        label: {
-          format: function (value, ratio) {
-            return `${value}%`;
-          },
-          show: true
-        },
-        min: this.gaugeSetup.battery_level.min,
-        max: this.gaugeSetup.battery_level.max,
-      },
-      color: {
-        pattern: this.gaugeSetup.battery_level.colors,
-        threshold: {
-          unit: 'value',
-          values: this.gaugeSetup.battery_level.thresholds
-        }
-      },
-      size: { height: 130, width: 200 },
-      interaction: { enabled: false },
-      transition: { duration: 0 },
-      legend: { hide: true }
-    });
-
-    // Define the data
-    this.timeData = ['x'];
-    this.motorTemperatureData = ['Motor Temperature'];
-    this.waterTemperatureData = ['Water Temperature'];
-    this.filterPressureData = ['Filter Pressure'];
-    this.membranePressureData = ['Membrane Pressure'];
-    this.productSalinityData = ['Product Salinity'];
-    this.productFlowrateData = ['Product Flowrate'];
-    this.tankLevelData = ['Tank Level'];
-    this.batteryLevelData = ['Battery Level'];
   }
 
   Brineomatic.prototype.handleConfigMessage = function (msg) {
@@ -645,7 +281,7 @@
     $("#flushValveControlButton").on("click", this.toggleFlushValve);
     $("#coolingFanControlButton").on("click", this.toggleCoolingFan);
     $("#advancedModeButton").on("click", this.advanced);
-    $("#editGaugeOrderButton").on("click", this.toggleGaugeEditMode);
+    $("#editGaugeOrderButton").on("click", () => { if (this.gauges) this.gauges.toggleGaugeEditMode(); });
 
     //visibility
     $('#bomInformationDiv').show();
@@ -653,10 +289,15 @@
     $('#bomStatsDiv').show();
     $('#brightnessUI').hide();
 
-    this.buildGaugeSetup();
+    // build the shared sensor config before either gauges or graphs read it;
+    // it must run even in MFD mode because setDataColor needs it for the text
+    // tiles.  The gauges own the home-page c3 charts (non-MFD only).
+    if (!this.gauges)
+      this.gauges = new YB.SensorGauges(this);
+    this.buildSensorConfig();
     if (!YB.App.isMFD()) {
       $("#editGaugeOrderButton").show();
-      this.createGauges();
+      this.gauges.create();
     }
 
     //graphs page - non MFD only
@@ -676,24 +317,8 @@
         this.graphs.open();
     }
 
-    if (msg.config.brineomatic.gauge_order) {
-      const savedOrder = JSON.parse(msg.config.brineomatic.gauge_order);
-      this.gaugeOrder = savedOrder;
-
-      // Hide gauges not in saved order
-      this.gaugeAllKeys.forEach(key => {
-        if (!savedOrder.includes(key))
-          $('[data-gauge="' + key + '"]').addClass('d-none');
-      });
-
-      // Reorder tiles in both containers to match saved order
-      ['#bomGauges', '#bomGaugesMFD'].forEach(containerId => {
-        const $container = $(containerId);
-        savedOrder.forEach(key => {
-          $container.find('[data-gauge="' + key + '"]').appendTo($container);
-        });
-      });
-    }
+    if (msg.config.brineomatic.gauge_order)
+      this.gauges.restoreOrder(JSON.parse(msg.config.brineomatic.gauge_order));
 
     //finally, show our interface.
     $('#bomInterface').css('visibility', 'visible');
@@ -775,20 +400,15 @@
     $(".batteryLevelContent").toggle(!err);
     $(".batteryLevelError").toggle(err);
 
-    //update our gauges.
+    //update our gauges.  the values are already converted/clamped/formatted
+    //above, so the gauges show the same finished numbers as the rest of the UI.
     if (!YB.App.isMFD()) {
-      if (YB.App.currentPage == "home") {
-        this.motorTemperatureGauge.load({ columns: [['Motor Temperature', motor_temperature]] });
-        this.waterTemperatureGauge.load({ columns: [['Water Temperature', water_temperature]] });
-        this.filterPressureGauge.load({ columns: [['Filter Pressure', filter_pressure]] });
-        this.membranePressureGauge.load({ columns: [['Membrane Pressure', membrane_pressure]] });
-        this.productSalinityGauge.load({ columns: [['Product Salinity', product_salinity]] });
-        this.brineSalinityGauge.load({ columns: [['Brine Salinity', brine_salinity]] });
-        this.productFlowrateGauge.load({ columns: [['Product Flowrate', product_flowrate]] });
-        this.brineFlowrateGauge.load({ columns: [['Brine Flowrate', brine_flowrate]] });
-        this.totalFlowrateGauge.load({ columns: [['Total Flowrate', total_flowrate]] });
-        this.tankLevelGauge.load({ columns: [['Tank Level', tank_level]] });
-        this.batteryLevelGauge.load({ columns: [['Battery Level', battery_level]] });
+      if (this.gauges && YB.App.currentPage == "home") {
+        this.gauges.update({
+          motor_temperature, water_temperature, filter_pressure, membrane_pressure,
+          product_salinity, brine_salinity, product_flowrate, brine_flowrate,
+          total_flowrate, tank_level, battery_level
+        });
       }
     } else {
       $("#filterPressureData").html(filter_pressure);
@@ -1141,8 +761,8 @@
   }
 
   Brineomatic.prototype.setDataColor = function (name, value, ele) {
-    // Check if the name exists in this.gaugeSetup
-    const setup = this.gaugeSetup[name];
+    // Check if the name exists in this.sensorConfig
+    const setup = this.sensorConfig[name];
     if (!setup) {
       console.warn(`No setup found for name: ${name}`);
       return;
@@ -1908,7 +1528,7 @@
                   </div>
               </div>
           </div>
-          <div id="bomGauges" class="row gx-2 my-3 mfdHide">
+          <div id="bomGauges" class="row g-2 mfdHide">
               <div class="filterPressureUI bomGaugeItem col-md-3 col-sm-4 col-6" data-gauge="filterPressure">
                   <button class="gauge-hide-btn btn-close" aria-label="Hide"></button>
                   <h6 class="my-0 text-center">Filter Pressure</h6>
@@ -2169,175 +1789,6 @@
       </div>
     `;
   }
-
-  Brineomatic.prototype.toggleGaugeEditMode = function () {
-    if (!this.gaugeEditMode)
-      this.startGaugeEditMode();
-    else
-      this.endGaugeEditMode();
-  }
-
-  Brineomatic.prototype.startGaugeEditMode = function () {
-
-    if (YB.App.isMFD())
-      return;
-
-    this.gaugeEditMode = true;
-    $('#bomGauges, #bomGaugesMFD').addClass('gauge-editing');
-
-    this.sortableGauges = Sortable.create(document.getElementById('bomGauges'), {
-      animation: 150,
-      filter: '.gauge-hide-btn',
-      preventOnFilter: false,
-      onEnd: () => this.syncMFDOrder()
-    });
-    this.sortableGaugesMFD = Sortable.create(document.getElementById('bomGaugesMFD'), {
-      animation: 150,
-      filter: '.gauge-hide-btn',
-      preventOnFilter: false,
-      onEnd: () => this.syncGaugesOrder()
-    });
-
-    // Wire X buttons
-    $('#bomGauges .gauge-hide-btn').off('click.gaugeEdit').on('click.gaugeEdit', (e) => {
-      const key = $(e.target).closest('[data-gauge]').data('gauge');
-      this.hideGauge(key);
-      this.renderAddGaugeTile();
-    });
-
-    const moveOverlay = '<div class="gauge-move-overlay">' +
-      '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-arrows-move" viewBox="0 0 16 16">' +
-      '<path fill-rule="evenodd" d="M7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10M.146 8.354a.5.5 0 0 1 0-.708l2-2a.5.5 0 1 1 .708.708L1.707 7.5H5.5a.5.5 0 0 1 0 1H1.707l1.147 1.146a.5.5 0 0 1-.708.708zM10 8a.5.5 0 0 1 .5-.5h3.793l-1.147-1.146a.5.5 0 0 1 .708-.708l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L14.293 8.5H10.5A.5.5 0 0 1 10 8"/>' +
-      '</svg></div>';
-    $('#bomGauges .bomGaugeItem, #bomGaugesMFD .bomGaugeItem').append(moveOverlay);
-
-    this.renderAddGaugeTile();
-  };
-
-  Brineomatic.prototype.endGaugeEditMode = function () {
-
-    if (YB.App.isMFD())
-      return;
-
-    this.gaugeEditMode = false;
-    $('#bomGauges, #bomGaugesMFD').removeClass('gauge-editing');
-
-    if (this.sortableGauges) { this.sortableGauges.destroy(); this.sortableGauges = null; }
-    if (this.sortableGaugesMFD) { this.sortableGaugesMFD.destroy(); this.sortableGaugesMFD = null; }
-
-    $('#bomAddGaugeTile, #bomAddGaugeTileMFD').remove();
-    $('.gauge-move-overlay').remove();
-  };
-
-  Brineomatic.prototype.hideGauge = function (key) {
-    $('[data-gauge="' + key + '"]').addClass('d-none');
-    const order = $('#bomGauges [data-gauge]:not(.d-none)').map((_i, el) => el.dataset.gauge).toArray();
-    this.onGaugeOrderChanged(order);
-  };
-
-  Brineomatic.prototype.showGauge = function (key) {
-    const gaugesTile = $('#bomGauges [data-gauge="' + key + '"]');
-    const mfdTile = $('#bomGaugesMFD [data-gauge="' + key + '"]');
-    gaugesTile.removeClass('d-none').insertBefore('#bomAddGaugeTile');
-    mfdTile.removeClass('d-none').insertBefore('#bomAddGaugeTileMFD');
-    this.renderAddGaugeTile();
-    const order = $('#bomGauges [data-gauge]:not(.d-none)').map((_i, el) => el.dataset.gauge).toArray();
-    this.onGaugeOrderChanged(order);
-  };
-
-  Brineomatic.prototype.renderAddGaugeTile = function () {
-    const gaugeLabels = {
-      filterPressure: 'Filter Pressure',
-      membranePressure: 'Membrane Pressure',
-      productSalinity: 'Product Salinity',
-      productFlowrate: 'Product Flowrate',
-      brineSalinity: 'Brine Salinity',
-      brineFlowrate: 'Brine Flowrate',
-      totalFlowrate: 'Total Flowrate',
-      motorTemperature: 'Motor Temperature',
-      waterTemperature: 'Water Temperature',
-      tankLevel: 'Tank Level',
-      batteryLevel: 'Battery Level',
-      productVolume: 'Product Volume',
-      flushVolume: 'Flush Volume'
-    };
-
-    const hiddenKeys = this.gaugeAllKeys.filter(key =>
-      $('#bomGauges [data-gauge="' + key + '"]').hasClass('d-none')
-    );
-
-    // Populate modal body
-    let modalBodyHtml = '';
-    if (hiddenKeys.length === 0) {
-      modalBodyHtml = '<p class="text-body-tertiary text-center">All gauges visible</p>';
-    } else {
-      modalBodyHtml = '<div class="d-grid gap-2" style="grid-template-columns: 1fr 1fr;">' +
-        hiddenKeys.map(key =>
-          '<button class="btn btn-outline-primary bomAddGaugeBtn" data-add-gauge="' + key + '">' +
-          gaugeLabels[key] + '</button>'
-        ).join('') +
-        '</div>';
-    }
-    $('#addGaugeModalBody').html(modalBodyHtml);
-
-    const tileInner = '<div class="bomAddGaugeTile d-flex flex-column align-items-center justify-content-center p-2">' +
-      '<div class="bom-add-gauge-plus">+</div>' +
-      '<h6 class="my-0">Add Gauge</h6></div>';
-
-    const tileHtml = '<div id="bomAddGaugeTile" class="bomGaugeItem col-md-3 col-sm-4 col-6"' +
-      ' data-bs-toggle="modal" data-bs-target="#addGaugeModal">' + tileInner + '</div>';
-
-    const mfdTileHtml = '<div id="bomAddGaugeTileMFD" class="bomGaugeItem col-md-3 col-sm-4 col-6"' +
-      ' data-bs-toggle="modal" data-bs-target="#addGaugeModal">' + tileInner + '</div>';
-
-    $('#bomAddGaugeTile').remove();
-    $('#bomAddGaugeTileMFD').remove();
-    if (hiddenKeys.length > 0) {
-      $('#bomGauges').append(tileHtml);
-      $('#bomGaugesMFD').append(mfdTileHtml);
-    }
-
-    // Wire add buttons in modal
-    $('#addGaugeModalBody').on('click', '.bomAddGaugeBtn', (e) => {
-      const key = $(e.currentTarget).data('add-gauge');
-      bootstrap.Modal.getInstance(document.getElementById('addGaugeModal')).hide();
-      this.showGauge(key);
-    });
-  };
-
-  Brineomatic.prototype.syncMFDOrder = function () {
-    const order = $('#bomGauges [data-gauge]').map((_i, el) => el.dataset.gauge).toArray();
-    const mfd = $('#bomGaugesMFD');
-    order.forEach(key => mfd.append(mfd.find('[data-gauge="' + key + '"]')));
-    const visibleOrder = $('#bomGauges [data-gauge]:not(.d-none)').map((_i, el) => el.dataset.gauge).toArray();
-    this.onGaugeOrderChanged(visibleOrder);
-  };
-
-  Brineomatic.prototype.syncGaugesOrder = function () {
-    const order = $('#bomGaugesMFD [data-gauge]').map((_i, el) => el.dataset.gauge).toArray();
-    const gauges = $('#bomGauges');
-    order.forEach(key => gauges.append(gauges.find('[data-gauge="' + key + '"]')));
-    const visibleOrder = $('#bomGauges [data-gauge]:not(.d-none)').map((_i, el) => el.dataset.gauge).toArray();
-    this.onGaugeOrderChanged(visibleOrder);
-  };
-
-  Brineomatic.prototype.applyGaugeOrder = function (order) {
-    for (const containerId of ['#bomGauges', '#bomGaugesMFD']) {
-      const container = $(containerId);
-      order.forEach(key => container.append(container.find('[data-gauge="' + key + '"]')));
-      container.find('[data-gauge]').each((_i, item) => {
-        const key = item.dataset.gauge;
-        $(item).toggleClass('d-none', !order.includes(key));
-      });
-    }
-  };
-
-  Brineomatic.prototype.onGaugeOrderChanged = function (order) {
-    let data = {};
-    data["cmd"] = "brineomatic_save_ui_config";
-    data["gauge_order"] = JSON.stringify(order);
-    YB.client.send(data, true);
-  };
 
   Brineomatic.prototype.generateSettingsUI = function () {
     return /*html*/ `
@@ -4364,30 +3815,9 @@
     let short = YB.bom.getShortTemperatureUnits(units);
     $(".temperatureUnits").html(short);
 
-    //update temperature gauge thresholds
-    if (this.motorTemperatureGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units));
-      let tempMax = Math.round(YB.bom.convertTemperature(80, "C", YB.config.brineomatic.temperature_units));
-      this.motorTemperatureGauge.internal.config.gauge_min = tempMin;
-      this.motorTemperatureGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.motorTemperatureGauge.internal.config.color_threshold.values = this.gaugeSetup.motor_temperature.thresholds;
-      this.motorTemperatureGauge.internal.levelColor = this.motorTemperatureGauge.internal.generateLevelColor.call(this.motorTemperatureGauge.internal);
-    }
-
-    if (this.waterTemperatureGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertTemperature(0, "C", YB.config.brineomatic.temperature_units));
-      let tempMax = Math.round(YB.bom.convertTemperature(50, "C", YB.config.brineomatic.temperature_units));
-      this.waterTemperatureGauge.internal.config.gauge_min = tempMin;
-      this.waterTemperatureGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.waterTemperatureGauge.internal.config.color_threshold.values = this.gaugeSetup.water_temperature.thresholds;
-      this.waterTemperatureGauge.internal.levelColor = this.waterTemperatureGauge.internal.generateLevelColor.call(this.waterTemperatureGauge.internal);
-    }
+    //re-span and re-colour the temperature gauges for the new units
+    if (this.gauges)
+      this.gauges.updateTemperatureGauges();
   }
 
   Brineomatic.prototype.updatePressureUnits = function (units) {
@@ -4398,30 +3828,9 @@
     let short = YB.bom.getShortPressureUnits(units);
     $(".pressureUnits").html(short);
 
-    //update gauge thresholds
-    if (this.membranePressureGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertPressure(0, "Bar", YB.config.brineomatic.pressure_units));
-      let tempMax = Math.round(YB.bom.convertPressure(69.0, "Bar", YB.config.brineomatic.pressure_units));
-      this.membranePressureGauge.internal.config.gauge_min = tempMin;
-      this.membranePressureGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.membranePressureGauge.internal.config.color_threshold.values = this.gaugeSetup.membrane_pressure.thresholds;
-      this.membranePressureGauge.internal.levelColor = this.membranePressureGauge.internal.generateLevelColor.call(this.membranePressureGauge.internal);
-    }
-
-    if (this.filterPressureGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertPressure(0, "Bar", YB.config.brineomatic.pressure_units));
-      let tempMax = Math.round(YB.bom.convertPressure(3.45, "Bar", YB.config.brineomatic.pressure_units));
-      this.filterPressureGauge.internal.config.gauge_min = tempMin;
-      this.filterPressureGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.filterPressureGauge.internal.config.color_threshold.values = this.gaugeSetup.filter_pressure.thresholds;
-      this.filterPressureGauge.internal.levelColor = this.filterPressureGauge.internal.generateLevelColor.call(this.filterPressureGauge.internal);
-    }
+    //re-span and re-colour the pressure gauges for the new units
+    if (this.gauges)
+      this.gauges.updatePressureGauges();
   }
 
   Brineomatic.prototype.updateVolumeUnits = function (units) {
@@ -4451,42 +3860,9 @@
     let volumeUnits = (lower === 'lph') ? 'liter' : 'gallon';
     $(".pulseVolumeUnitsLong").html(volumeUnits);
 
-    //update gauge thresholds
-    if (this.productFlowrateGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertFlowrate(0, "lph", YB.config.brineomatic.flowrate_units));
-      let tempMax = Math.round(YB.bom.convertFlowrate(250, "lph", YB.config.brineomatic.flowrate_units));
-      this.productFlowrateGauge.internal.config.gauge_min = tempMin;
-      this.productFlowrateGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.productFlowrateGauge.internal.config.color_threshold.values = this.gaugeSetup.product_flowrate.thresholds;
-      this.productFlowrateGauge.internal.levelColor = this.productFlowrateGauge.internal.generateLevelColor.call(this.productFlowrateGauge.internal);
-    }
-
-    if (this.brineFlowrateGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertFlowrate(0, "lph", YB.config.brineomatic.flowrate_units));
-      let tempMax = Math.round(YB.bom.convertFlowrate(600, "lph", YB.config.brineomatic.flowrate_units));
-      this.brineFlowrateGauge.internal.config.gauge_min = tempMin;
-      this.brineFlowrateGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.brineFlowrateGauge.internal.config.color_threshold.values = this.gaugeSetup.brine_flowrate.thresholds;
-      this.brineFlowrateGauge.internal.levelColor = this.brineFlowrateGauge.internal.generateLevelColor.call(this.brineFlowrateGauge.internal);
-    }
-
-    if (this.totalFlowrateGauge) {
-      //update our min/max
-      let tempMin = Math.round(YB.bom.convertFlowrate(0, "lph", YB.config.brineomatic.flowrate_units));
-      let tempMax = Math.round(YB.bom.convertFlowrate(600, "lph", YB.config.brineomatic.flowrate_units));
-      this.totalFlowrateGauge.internal.config.gauge_min = tempMin;
-      this.totalFlowrateGauge.internal.config.gauge_max = tempMax;
-
-      //thresholds
-      this.totalFlowrateGauge.internal.config.color_threshold.values = this.gaugeSetup.total_flowrate.thresholds;
-      this.totalFlowrateGauge.internal.levelColor = this.totalFlowrateGauge.internal.generateLevelColor.call(this.totalFlowrateGauge.internal);
-    }
+    //re-span and re-colour the flowrate gauges for the new units
+    if (this.gauges)
+      this.gauges.updateFlowrateGauges();
   }
 
   Brineomatic.prototype.updatePostRunFlushVisibility = function (mode) {

@@ -1,5 +1,16 @@
 # v2.8
 
+## Gauge Update
+
+* refactor gauge code from Brineomatic.js into SensorGauges.js
+    * follow similar pattern to SensorGraphs.js
+    * keep existing shared configuration / thresholds
+
+* threshold indication on gauges - issue #9
+* configurable thresholds for gauges - issue #3
+
+# LONG TERM:
+
 * move non-hardware config out of hardware config - add a single tab "Runtime"
     * Flush Mode
         * auto flush configuration
@@ -12,11 +23,6 @@
             * not step angle, gear ratio, or current... thats hardware
         * PID vs Fixed Angle
             * pid can have PID values here
-
-* configurable thresholds for gauges - issue #3
-* threshold indication on gauges - issue #9
-
-# LONG TERM:
 
 * pid control of pressure
     * stepper -> stepper fixed angle

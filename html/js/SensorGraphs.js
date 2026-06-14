@@ -112,13 +112,14 @@
     // they're stored (a steady-state reading then graphs as a flat line
     // instead of jittering in the noise below the displayed precision).
     //
-    // The y-axis range is pulled from the gauges (YB.bom.gaugeSetup) so the
-    // graphs and the home-page gauges share a single source of truth.  Both
-    // store their ranges in the same display units the series plot in, so the
-    // gauge bounds drop straight onto each series.  The range is carried
-    // per-series (not aggregated onto the tab) so the y-axis can be re-spanned
-    // from just the series the user currently has shown — see create().
-    const gauges = (this.bom && this.bom.gaugeSetup) || {};
+    // The y-axis range is pulled from the shared sensor config
+    // (YB.bom.sensorConfig) so the graphs and the home-page gauges share a
+    // single source of truth.  Both store their ranges in the same display
+    // units the series plot in, so the gauge bounds drop straight onto each
+    // series.  The range is carried per-series (not aggregated onto the tab) so
+    // the y-axis can be re-spanned from just the series the user currently has
+    // shown — see create().
+    const gauges = (this.bom && this.bom.sensorConfig) || {};
     for (let tab of this.setup) {
       tab.enabled = tab.series.some(s => s.enabled);
       for (let s of tab.series) {
