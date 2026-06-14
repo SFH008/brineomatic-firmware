@@ -5,6 +5,12 @@
     "description": "",
     "firmware": [
       {
+        "version": "2.8.0",
+        "url": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_B/2.8.0.bin",
+        "espwebtools_manifest": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_B/2.8.0-espwebtools/manifest.json",
+        "changelog": "# Version 2.8.0\n\n## \ud83d\ude80 New Features\n\n- **Historical Sensor Graphs**\n  - Brand new sensor graphing system using uPlot.js for better performance\n  - New `SensorHistory` class buffering historical sensor data (up to 20k points, averaged over a fixed window)\n  - Time window selector with multiple ranges (Last Minute, Last 15/30 Minutes, Last Hour, etc.)\n  - Time is relative to \"now\" so the correct data loads regardless of when the page opens\n  - Graphs lazy-load: only the currently selected graph fetches historical data, not all of them at once\n  - Download button to export graph data as JSON\n  - Using to ESP `micros()` for timestamping - no rollover issues\n  - Graphs hidden in MFD view (`!isMFD()` guard)\n\n## \ud83d\udee0\ufe0f Improvements & Enhancements\n\n- **Gauges**\n  - Added tick marks on gauges reflecting safety cutoffs, respecting the current run mode (fixes #9)\n  - Refactored gauge logic into a dedicated `SensorGauges.js`\n  - Single source of truth shared between gauges and graphs for ranges\n- Added fixed-decimal formatting to all displayed values\n- Bumped run cycle stabilization to 15s, with a stabilization period before sensor stats tracking begins\n- `stats.stopCycle()` is now the first thing that happens at the end of a cycle\n- Centered download buttons with icons for a consistent look\n\n## \ud83d\udc1b Bug Fixes\n\n- Fixed the ELF file location in `parse_coredump.py`\n\n---"
+      },
+      {
         "version": "2.7.0",
         "url": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_B/2.7.0.bin",
         "espwebtools_manifest": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_B/2.7.0-espwebtools/manifest.json",
@@ -53,6 +59,12 @@
     "image": "img/brineomatic_rev_c.jpg",
     "description": "",
     "firmware": [
+      {
+        "version": "2.8.0",
+        "url": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_C/2.8.0.bin",
+        "espwebtools_manifest": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_C/2.8.0-espwebtools/manifest.json",
+        "changelog": "# Version 2.8.0\n\n## \ud83d\ude80 New Features\n\n- **Historical Sensor Graphs**\n  - Brand new sensor graphing system using uPlot.js for better performance\n  - New `SensorHistory` class buffering historical sensor data (up to 20k points, averaged over a fixed window)\n  - Time window selector with multiple ranges (Last Minute, Last 15/30 Minutes, Last Hour, etc.)\n  - Time is relative to \"now\" so the correct data loads regardless of when the page opens\n  - Graphs lazy-load: only the currently selected graph fetches historical data, not all of them at once\n  - Download button to export graph data as JSON\n  - Using to ESP `micros()` for timestamping - no rollover issues\n  - Graphs hidden in MFD view (`!isMFD()` guard)\n\n## \ud83d\udee0\ufe0f Improvements & Enhancements\n\n- **Gauges**\n  - Added tick marks on gauges reflecting safety cutoffs, respecting the current run mode (fixes #9)\n  - Refactored gauge logic into a dedicated `SensorGauges.js`\n  - Single source of truth shared between gauges and graphs for ranges\n- Added fixed-decimal formatting to all displayed values\n- Bumped run cycle stabilization to 15s, with a stabilization period before sensor stats tracking begins\n- `stats.stopCycle()` is now the first thing that happens at the end of a cycle\n- Centered download buttons with icons for a consistent look\n\n## \ud83d\udc1b Bug Fixes\n\n- Fixed the ELF file location in `parse_coredump.py`\n\n---"
+      },
       {
         "version": "2.7.0",
         "url": "https://firmware.brineomatic.com/releases/BRINEOMATIC_REV_C/2.7.0.bin",
