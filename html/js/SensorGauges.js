@@ -74,12 +74,30 @@
     { gauge: 'totalFlowrate', statuses: ['PICKLING', 'DEPICKLING'], enableKey: 'enable_pickle_total_flowrate_low_check', valueKey: 'pickle_total_flowrate_low_threshold', unit: 'flowrate' }
   ];
 
-  // Build the 11 c3 gauge instances from the shared sensor config.  Idempotent:
-  // handleConfigMessage can fire more than once (reconnect), so bail if the
-  // gauges already exist rather than orphaning the old c3 charts.
+  // Tear down any existing c3 gauge charts and null their references so the
+  // next create() rebuilds from scratch.  Wrapped in try/catch because the
+  // containers may already be detached (handleConfigMessage rebuilds the DOM
+  // before we run), in which case c3's destroy can throw — we only care that
+  // the references get cleared and c3's window-resize handlers are released.
+  SensorGauges.prototype.destroy = function () {
+    this.gaugeTickKeys.forEach(key => {
+      const chart = this[key + 'Gauge'];
+      if (!chart)
+        return;
+      try { chart.destroy(); } catch (e) { /* container already gone */ }
+      this[key + 'Gauge'] = null;
+    });
+  };
+
+  // Build the 11 c3 gauge instances from the shared sensor config.
+  //
+  // handleConfigMessage rebuilds the entire home-page DOM (fresh, empty gauge
+  // containers) on every config message, including reconnects after an idle
+  // socket.  The old c3 charts are bound to the now-discarded containers, so we
+  // must tear them down and rebuild against the new DOM — otherwise the gauges
+  // go blank after a reconnect.
   SensorGauges.prototype.create = function () {
-    if (this.motorTemperatureGauge)
-      return;
+    this.destroy();
 
     const cfg = this.bom.sensorConfig;
 
