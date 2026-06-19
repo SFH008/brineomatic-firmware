@@ -1,3 +1,8 @@
+# v2.8.1
+
+* averages not accurate - reset wrong or double internally?
+* graph should not round data - only format for display label
+
 # LONG TERM:
 
 * move non-hardware config out of hardware config - add a single tab "Runtime"
