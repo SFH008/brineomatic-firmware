@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+mkdir -p /data/log/brineomatic
+exec multilog t s100000 n3 /data/log/brineomatic

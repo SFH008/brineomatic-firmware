@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+task_app=/data/apps/available/brineomatic
+export PYTHONPATH="$task_app/bridge"
+exec python3 -m brineomatic_cerbo.runtime --config "$task_app/config/config.json"

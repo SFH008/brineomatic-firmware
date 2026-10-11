@@ -1,0 +1,12 @@
+{
+  "venus_os": "3.81",
+  "gui_v2": "1.3.22",
+  "gui_v2_commit": "d680c66e78d320901475ffde071a907e8a256b32",
+  "plugin_compiler_git_blob": "e3d85e431f82694bf8781b9b1a57e099ddaafec4",
+  "dbus_flashmq": "26",
+  "dbus_flashmq_commit": "9539cfd9ab535087ec6a393f94cd2f0d0d77a8e4",
+  "status": "source-aligned scaffold; hardware validation pending",
+  "navigation": "settings integration",
+  "switchable_output": "momentary stop only",
+  "generic_inputs": "value indicators with explicit units"
+}

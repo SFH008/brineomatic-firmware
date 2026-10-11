@@ -1,0 +1,8 @@
+{
+  "mode": "simulation",
+  "commands_enabled": false,
+  "device_instance": 0,
+  "stale_after_seconds": 5,
+  "endpoint": "http://brineomatic.local",
+  "credentials_file": "/data/apps/available/brineomatic/config/credentials.json"
+}
